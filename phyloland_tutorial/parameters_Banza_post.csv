@@ -1,0 +1,2 @@
+num_location,prior_sigma1,prior_sigma2,prior_lambda,prior_tau,num_step,freq,num_step_sigma,num_step_lambda,num_step_tau,ess_lim,
+5,unif,unif,unif,unif,1e+05,100,1,1,1,500,

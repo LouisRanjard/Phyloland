@@ -1,0 +1,7 @@
+\select@language {english}
+\contentsline {section}{\numberline {1}Data set: Hawaiian katydids}{3}{section.1}
+\contentsline {section}{\numberline {2}MCMC}{4}{section.2}
+\contentsline {section}{\numberline {3}Model parameters}{5}{section.3}
+\contentsline {section}{\numberline {4}Display tree}{6}{section.4}
+\contentsline {section}{\numberline {5}Location of the Most Recent Common Ancestor of a set of tips}{8}{section.5}
+\contentsline {section}{\numberline {6}Dispersal times}{9}{section.6}
