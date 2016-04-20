@@ -709,28 +709,29 @@ if (id_node_idf==58 || id_node_idf==68 || id_node_idt==58 || id_node_idt==68){
 ## ignore the last migration that happens when the observation are done
 mig2treel <- function(history,plot_tree=0){
 	nmig = nrow(history)-1 ## keep last migration for tip branch length
-	gtreel = matrix(0,1+2*nmig,4)
+	gtreel = list(nodes=NA,nodes.label=NA)
+	gtreel$nodes = matrix(0,1+2*nmig,4)
 	location = vector('numeric',1+2*nmig)
 	locations_sampled = matrix(0,nrow=1+2*nmig,ncol=ncol(history)-3) ## location(destination) | distance(s)
 	istip = vector('numeric',1+2*nmig)
 	## root
 	location[1] = history[1,1]
 	locations_sampled[1,] = c(history[1,1],rep(0,ncol(history)-4))
-	gtreel[1,] = c(NA,2,3,NA)
+	gtreel$nodes [1,] = c(NA,2,3,NA)
 	istip[1] = 1
 	for (i in 1:nmig){
 		possibletips = which(location==history[i,1] & istip==1)
 		nodeid = possibletips[sample(length(possibletips),1)] ## uniform to choose which tip the migration starts from
-		gtreel[nodeid,2:3] = c(2*i,2*i+1)
+		gtreel$nodes [nodeid,2:3] = c(2*i,2*i+1)
 		#time_to_father = runif(1,0:1) #rexp(1,rate=1)
 		wait_time = history[i,4]
-		gtreel[nodeid,4] = gtreel[nodeid,4] + wait_time
+		gtreel$nodes [nodeid,4] = gtreel$nodes [nodeid,4] + wait_time
 		#gtreel[2*i,1:4] = c(nodeid,NA,NA,wait_time)
 		#gtreel[2*i+1,1:4] = c(nodeid,NA,NA,wait_time)
-		gtreel[2*i,1:3] = c(nodeid,NA,NA)
-		gtreel[2*i+1,1:3] = c(nodeid,NA,NA)
+		gtreel$nodes [2*i,1:3] = c(nodeid,NA,NA)
+		gtreel$nodes [2*i+1,1:3] = c(nodeid,NA,NA)
 		istip[nodeid] = 0
-		gtreel[which(istip==1),4] = gtreel[which(istip==1),4] + wait_time ## increase node father heights of the existing tips
+		gtreel$nodes [which(istip==1),4] = gtreel$nodes [which(istip==1),4] + wait_time ## increase node father heights of the existing tips
 		istip[2*i] = 1
 		istip[2*i+1] = 1
 		staygo = sample(1:2,2,replace=FALSE) ## uniform to choose which node stays on its father loc
@@ -742,13 +743,13 @@ mig2treel <- function(history,plot_tree=0){
 #print(istip)
 	}
 	## extra step to define the length of the tip branches, this is given by the last migration
-	gtreel[which(istip==1),4] = gtreel[which(istip==1),4] + history[nmig+1,4]
+	gtreel$nodes [which(istip==1),4] = gtreel$nodes [which(istip==1),4] + history[nmig+1,4]
 #print(istip)
 	if (plot_tree==1){
 		print(history)
 		print(rbind(seq(1,length(location)),location))
-		print(gtreel)
-		treepar = treel2par(gtreel)
+		print(gtreel$nodes )
+		treepar = treel2par(gtreel$nodes)
 #print(locations_sampled)
 		print(treepar)
 		## replace node id by their location id (needs library(gsubfn))
@@ -759,7 +760,10 @@ mig2treel <- function(history,plot_tree=0){
 		plot.phylo(read.tree(file="",text=treepar),show.tip.label=TRUE,show.node.label=TRUE)
 		print(treepar)
 	}
-	return(list(gtreel,location,locations_sampled))
+	# reformat gtreel for consistency
+	#gtreelout = list(nodes=NA,nodes.label=NA)
+	#gtreelout$nodes = gtreel
+	return(list(gtreel ,location,locations_sampled))
 }
 
 ##
@@ -1090,7 +1094,9 @@ childrentip <- function(node, gtreel){
 ##
 ### get the node absolute heights of internal nodes from branch length to parent
 internal_node_height <- function(gtreel){
+  
   inode_height = vector("numeric", length(gtreel$nodes[,1]))
+
   for (n in 1:length(gtreel$nodes[,1])) {
     if (is.na(gtreel$nodes[n,2]) & is.na(gtreel$nodes[n,3])) { ## tip
       inode_height[n] = 0
@@ -1119,9 +1125,11 @@ height <- function(node, gtreel){
 ### model: each node is 2 dispersals potentially on father's loc (1) or exactly one dispersal out of father's loc (2) or one mig per node (4)
 ### samunif: if ==1, draw the locations of internal nodes uniformly in the list of possible locations, otherwise use the model
 sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL = 0, model = 1, samunif = 0, numtip = 50){
+	
 	## to compute history likelihood
 	history_proba_val = 0
 	if (model==4 && locations[[1]][1]>0) { ## only one migration per internal node possible
+		
 		rootn = which(is.na(gtreel[,1]))
 		locations_sampled = matrix(0,nrow=length(gtreel[,1]),ncol=(1+(dim(space)[1]))) ## location(destination) | distance(s)
 		## get the absolute height of each internal node
@@ -1258,16 +1266,21 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
 		#while(is.vector(history)){ ## need at least 2 migrations, i.e. a matrix
 		#	history = sim_mig(space,sigma,lambda,tau,quantile(rep_tlim,.95))[[1]]
 		#}
+
 		history = cbind(0)
 		history = sim_mig(space,sigma,lambda,tau,0,numtip)[[1]] # limit to numtip leaves
 		print(paste('number of simulated migration events:',nrow(history)-1))
 		treeloc = mig2treel(history)
 		gtreel = treeloc[[1]]
 		locations_sampled = treeloc[[3]]
+
     # sort and reorder gtreel for consistent format
 		reordered = sort_gtreel(gtreel, locations_sampled)
+
 		gtreel = reordered[[1]]
+
 		locations_sampled = reordered[[2]]
+
 	}
 	return(list(locations_sampled,history_proba_val,gtreel))
 }
@@ -1573,7 +1586,7 @@ geneal_to_treel <- function(coal_history){
 }
 
 ## simulate migration in space and return corresponding genealogy
-sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_simul=.3,lambda_simul=.5,tau_simul=1,use_molseq=0,space_dim=1,model=1){
+sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_simul=.4,lambda_simul=.5,tau_simul=1,use_molseq=0,space_dim=1,model=1){
 	if (model!=4){ ## create tree first
 		## get a tree using a Yule process then simulate a genealogy
 		#tree_treeshape = rtreeshape(n=1, tip.number=N, model="yule")[[1]] # tree format "treeshape" (package:apTreeshape)
@@ -1590,19 +1603,25 @@ sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_sim
 		coalhist = geneal(gtreel,numi,pop_size)
 		gtreel = geneal_to_treel(coalhist[[2]]) ## genealogy in format "louis"
 	}else{ ## tree will be generated from migration events
-		gtreel = NA
+		#gtreel = NA
+		gtreel = list(nodes=NA,nodes.label=NA)
+		
 	}
 	## generate a space
 	## PARAMETER: number of geographic locations
+
 	space = create_landscape(space_size,space_dim)
+
 #print(numi)
 	#space = create_landscape(sum(numi),space_dim)
 	#space = t(as.matrix(space))
 #print(space)
 	## simulate migrations from root to tips
 	## PARAMETER: sigma, lambda, tau
-	simulated_history = sim_history(gtreel,space,sigma_simul,lambda_simul,tau_simul,0,0,model)
+	simulated_history = sim_history(gtreel,space,sigma_simul,lambda_simul,tau_simul,0,0,model,0,N)
+
 	locations_sampled = simulated_history[[1]]
+
 	if (model==4){
 		gtreel = simulated_history[[3]]
 	}
@@ -2541,16 +2560,16 @@ sim_landscape_dist <- function(testcorr=0,printfile=0){
 ##check the structure of a gtreel phylogenetic tree
 check_treel <- function(gtreel,locations=NA){
   error_found = 0
-  if ( length(which(is.na(gtreel[,1])))!=1 ){
+  if ( length(which(is.na(gtreel$nodes[,1])))!=1 ){
     print("error root")
     error_found = 1
   }
-  for (n in 1:length(gtreel[,1])){
-    pere = gtreel[n,1]
-    filsg = gtreel[n,2]
-    filsd = gtreel[n,3]
+  for (n in 1:length(gtreel$nodes[,1])){
+    pere = gtreel$nodes[n,1]
+    filsg = gtreel$nodes[n,2]
+    filsd = gtreel$nodes[n,3]
     if ( !is.na(pere) ){
-      if ( gtreel[pere,2]!=n && gtreel[pere,3]!=n ){
+      if ( gtreel$nodes[pere,2]!=n && gtreel$nodes[pere,3]!=n ){
         print("error 1")
         error_found = 1
       }
@@ -2560,13 +2579,13 @@ check_treel <- function(gtreel,locations=NA){
       error_found = 1
     }
     if ( !is.na(filsg) ){
-      if ( gtreel[filsg,1]!=n ){
+      if ( gtreel$nodes[filsg,1]!=n ){
         print("error filsg")
         error_found = 1
       }
     }
     if ( !is.na(filsd) ){
-      if ( gtreel[filsd,1]!=n ){
+      if ( gtreel$nodes[filsd,1]!=n ){
         print("error filsd")
         error_found = 1
       }
@@ -3341,16 +3360,17 @@ delete_mig_history <- function(history,mig_id_del) {
 
 # sort gtreel so that tips come first, then root, then internal nodes
 sort_gtreel <- function(gtreel, locations){
-  gtreelO = matrix(0,nrow=nrow(gtreel),ncol=4)
-  ntips = ( length(gtreel[,1])+1 )/2
+  gtreelO = list(nodes = NA, nodes.label=NA)
+  gtreelO$nodes = matrix(0,nrow=nrow(gtreel$nodes),ncol=4)
+  ntips = ( length(gtreel$nodes[,1])+1 )/2
   nnodes = ntips-1
   # save original indexes
-  idtips = which(is.na(gtreel[,2]))
-  rootn = which(is.na(gtreel[,1]))
-  idintnodes = which(is.na(gtreel[,2])==F & is.na(gtreel[,1])==F) # all internal nodes
-  gtreelO[1:ntips,2:3] = cbind(rep(NA,ntips),rep(NA,ntips)) # tips first (no children)
-  gtreelO[ntips+1,c(1,4)] = NA # then root (no parent)
-  gtreelO[1:ntips,4] = gtreel[idtips,4] # height for tips stay the same
+  idtips = which(is.na(gtreel$nodes[,2]))
+  rootn = which(is.na(gtreel$nodes[,1]))
+  idintnodes = which(is.na(gtreel$nodes[,2])==F & is.na(gtreel$nodes[,1])==F) # all internal nodes
+  gtreelO$nodes[1:ntips,2:3] = cbind(rep(NA,ntips),rep(NA,ntips)) # tips first (no children)
+  gtreelO$nodes[ntips+1,c(1,4)] = NA # then root (no parent)
+  gtreelO$nodes[1:ntips,4] = gtreel$nodes[idtips,4] # height for tips stay the same
   
   ## get the absolute height of each internal node
   inode_height = internal_node_height(gtreel)
@@ -3358,45 +3378,45 @@ sort_gtreel <- function(gtreel, locations){
   mapintnode = cbind( c(rootn,intnode_ordered), (ntips+1):(ntips+nnodes)) # keep the mapping between old and new indexes, including the root
   idintnodes0 = ntips+1+1
   for (n in intnode_ordered) { # go through internal nodes, from most recent to oldest
-    if(is.na(gtreel[gtreel[n,2],2])){ # internal nodes of a tip in the original tree
-      filsg = which(idtips==gtreel[n,2])
+    if(is.na(gtreel$nodes[gtreel$nodes[n,2],2])){ # internal nodes of a tip in the original tree
+      filsg = which(idtips==gtreel$nodes[n,2])
     }else{
-      filsg = mapintnode[which(mapintnode[,1]==gtreel[n,2]),2]
+      filsg = mapintnode[which(mapintnode[,1]==gtreel$nodes[n,2]),2]
     }
-    if(is.na(gtreel[gtreel[n,3],2])){ # internal nodes of a tip in the original tree
-      filsd = which(idtips==gtreel[n,3])
+    if(is.na(gtreel$nodes[gtreel$nodes[n,3],2])){ # internal nodes of a tip in the original tree
+      filsd = which(idtips==gtreel$nodes[n,3])
     }else{
-      filsd = mapintnode[which(mapintnode[,1]==gtreel[n,3]),2]
+      filsd = mapintnode[which(mapintnode[,1]==gtreel$nodes[n,3]),2]
     }
-    gtreelO[idintnodes0,2:3] = c(filsg,filsd)
-    gtreelO[idintnodes0,1] = mapintnode[which(mapintnode[,1]==gtreel[n,1]),2]
-    gtreelO[filsg,1] = idintnodes0
-    gtreelO[filsd,1] = idintnodes0
-    gtreelO[filsg,4] = gtreel[gtreel[n,2],4]
-    gtreelO[filsd,4] = gtreel[gtreel[n,3],4]
+    gtreelO$nodes[idintnodes0,2:3] = c(filsg,filsd)
+    gtreelO$nodes[idintnodes0,1] = mapintnode[which(mapintnode[,1]==gtreel$nodes[n,1]),2]
+    gtreelO$nodes[filsg,1] = idintnodes0
+    gtreelO$nodes[filsd,1] = idintnodes0
+    gtreelO$nodes[filsg,4] = gtreel$nodes[gtreel$nodes[n,2],4]
+    gtreelO$nodes[filsd,4] = gtreel$nodes[gtreel$nodes[n,3],4]
     idintnodes0 = idintnodes0+1
   }
   # for the root
-  filsr = which(gtreelO[,1]==(ntips+1)) # internal node(s) below root
-  if(is.na(gtreel[gtreel[rootn,2],2])){ # a tip is directly connected to root in the original tree
-    filsg = which(idtips==gtreel[rootn,2])
+  filsr = which(gtreelO$nodes[,1]==(ntips+1)) # internal node(s) below root
+  if(is.na(gtreel$nodes[gtreel$nodes[rootn,2],2])){ # a tip is directly connected to root in the original tree
+    filsg = which(idtips==gtreel$nodes[rootn,2])
     filsd = filsr[1]
-    gtreelO[filsg,1] = ntips+1
-    gtreelO[filsg,4] = gtreel[gtreel[rootn,2],4]
-    gtreelO[filsd,4] = gtreel[mapintnode[which(mapintnode[,2]==filsd),1],4]
-  }else if(is.na(gtreel[gtreel[rootn,3],2])){
+    gtreelO$nodes[filsg,1] = ntips+1
+    gtreelO$nodes[filsg,4] = gtreel$nodes[gtreel$nodes[rootn,2],4]
+    gtreelO$nodes[filsd,4] = gtreel$nodes[mapintnode[which(mapintnode[,2]==filsd),1],4]
+  }else if(is.na(gtreel$nodes[gtreel$nodes[rootn,3],2])){
     filsg = filsr[1]
-    filsd = which(idtips==gtreel[rootn,3])
-    gtreelO[filsd,1] = ntips+1
-    gtreelO[filsg,4] = gtreel[mapintnode[which(mapintnode[,2]==filsg),1],4]
-    gtreelO[filsd,4] = gtreel[gtreel[rootn,3],4]
+    filsd = which(idtips==gtreel$nodes[rootn,3])
+    gtreelO$nodes[filsd,1] = ntips+1
+    gtreelO$nodes[filsg,4] = gtreel$nodes[mapintnode[which(mapintnode[,2]==filsg),1],4]
+    gtreelO$nodes[filsd,4] = gtreel$nodes[gtreel$nodes[rootn,3],4]
   }else{
     filsg = filsr[1]
     filsd = filsr[2]
-    gtreelO[filsg,4] = gtreel[mapintnode[which(mapintnode[,2]==filsg),1],4]
-    gtreelO[filsd,4] = gtreel[mapintnode[which(mapintnode[,2]==filsd),1],4]
+    gtreelO$nodes[filsg,4] = gtreel$nodes[mapintnode[which(mapintnode[,2]==filsg),1],4]
+    gtreelO$nodes[filsd,4] = gtreel$nodes[mapintnode[which(mapintnode[,2]==filsd),1],4]
   }
-  gtreelO[ntips+1,2:3] = c(filsg,filsd)
+  gtreelO$nodes[ntips+1,2:3] = c(filsg,filsd)
 
   locationsO = locations[c(idtips,rootn,intnode_ordered),]
   
