@@ -769,36 +769,32 @@ mig2treel <- function(history,plot_tree=0){
 ##
 ### convert louis tree structure to the history of migrations
 treel2mig <- function(gtreel, location, space){
-	history = matrix(0, 0, 5+dim(space)[1]) ## |dep|dest|proba|time2father|dist(|dist...)|height
-	rootn = which(is.na(gtreel[,1]))
-	## get the absolute height of each internal node
-	inode_height = internal_node_height(gtreel)
-	## need to treat the nodes from the oldest to the most recent
-	node_id = sort(inode_height, decreasing=TRUE, index.return=TRUE)$ix
-	if (node_id[1] != rootn){stop('treel2mig error')}
-	for (n in 1:length(node_id)) {
-		ploc = location[[node_id[n]]]
-		siblings = which(gtreel[,1] == node_id[n])
-		if (length(siblings) == 0) {next}
-		if (location[[siblings[1]]] == ploc && location[[siblings[2]]] != ploc) {
-			noddest = siblings[2]
-			locdest = location[[siblings[2]]]
-		} else if (location[[siblings[2]]] == ploc && location[[siblings[1]]] != ploc) {
-			noddest = siblings[1]
-			locdest = location[[siblings[1]]]
-		} else if (location[[siblings[1]]] == ploc && location[[siblings[2]]] == ploc) {
-			noddest = siblings[1]
-			locdest = location[[siblings[1]]]
-		}
-		distmig = as.vector(abs(space[,ploc]-space[,locdest]))
-		#history = rbind(history, c(ploc, locdest, NA, gtreel[noddest,4], distmig, inode_height[node_id[n]]))
-		if (n==1) time2nextmig = 0 # unknown
-    else time2nextmig = inode_height[node_id[n-1]] - inode_height[node_id[n]]
-		history = rbind(history, c(ploc, locdest, NA, time2nextmig, distmig, inode_height[node_id[n]]))
-	}
-  # add a last migration that corresponds to the time at which we do the observation, give the last tip length (for consistency with mig2treel() that ignore the last migration)
-	history = rbind(history, c(0, 0, NA, min(inode_height[which(inode_height>0)]), rep(0,length(distmig)), inode_height[node_id[n]]))
-	return(history)
+  check_treel(gtreel, location)
+  history = matrix(0, 0, 5+dim(space)[1]) ## |dep|dest|proba|time2father|dist(|dist...)|height
+  rootn = which(is.na(gtreel$nodes[,1]))
+  ## get the absolute height of each internal node
+  inode_height = internal_node_height(gtreel)
+  ## need to treat the nodes from the oldest to the most recent
+  node_id = sort(inode_height, decreasing=TRUE, index.return=TRUE)$ix
+  if (node_id[1] != rootn){stop('treel2mig error')}
+  for (n in 1:length(node_id)) {
+    ploc = location[[node_id[n]]]
+    siblings = which(gtreel$nodes[,1] == node_id[n])
+    if (length(siblings) == 0) {next}
+    if (location[[siblings[1]]] == ploc && location[[siblings[2]]] != ploc) {
+      noddest = siblings[2]
+      locdest = location[[siblings[2]]]
+    } else if (location[[siblings[2]]] == ploc && location[[siblings[1]]] != ploc) {
+      noddest = siblings[1]
+      locdest = location[[siblings[1]]]
+    } else if (location[[siblings[1]]] == ploc && location[[siblings[2]]] == ploc) {
+      noddest = siblings[1]
+      locdest = location[[siblings[1]]]
+    }
+    distmig = as.vector(abs(space[,ploc]-space[,locdest]))
+    history = rbind(history, c(ploc, locdest, NA, gtreel$nodes[noddest,4], distmig, inode_height[node_id[n]]))
+  }
+  return(history)
 }
 
 ##
@@ -820,21 +816,24 @@ treel2par <- function(gtreel){
 # 		gtreel[tree_phylo$edge[n,2],4] = tree_phylo$edge.length[n]
 # 	}
 # 	return(gtreel)
+### convert ape phylo tree structure (edges) to node index:parent|left child|right child|branch length to parent|
 converttree <- function(tree_phylo){
-	gtreel <- list( nodes=matrix(NA,(2*tree_phylo$Nnode+1),4), nodes.label=seq(1,(2*tree_phylo$Nnode+1)) )
+	#gtreel = matrix(NA, (2*tree_phylo$Nnode + 1), 4)
+  gtreel <- list( nodes=matrix(NA,(2*tree_phylo$Nnode+1),4), nodes.label=seq(1,(2*tree_phylo$Nnode+1)) )
 	for (n in 1:(2*tree_phylo$Nnode)) {
-	  gtreel$nodes[tree_phylo$edge[n,2],1] = tree_phylo$edge[n,1] # parent
-	  if (is.na(gtreel$nodes[tree_phylo$edge[n,1],2])) { # has that edge been visited yet
-	    gtreel$nodes[tree_phylo$edge[n,1],2] = tree_phylo$edge[n,2] # child left
-	  } else {
-	    gtreel$nodes[tree_phylo$edge[n,1],3] = tree_phylo$edge[n,2] # child right
-	  }
-	  gtreel$nodes[tree_phylo$edge[n,2],4] = tree_phylo$edge.length[n]
-	  if (tree_phylo$edge[n,2]<=(tree_phylo$Nnode+1)) { gtreel$nodes.label[tree_phylo$edge[n,2]] = tree_phylo$tip.label[tree_phylo$edge[n,2]] } # tip
-	  if (!is.null(tree_phylo$node.label)) { gtreel$nodes.label[tree_phylo$edge[n,1]] = tree_phylo$node.label[tree_phylo$edge[n,1]-(tree_phylo$Nnode+1)] }
+		gtreel$nodes[tree_phylo$edge[n,2],1] = tree_phylo$edge[n,1] # parent
+		if (is.na(gtreel$nodes[tree_phylo$edge[n,1],2])) { # has that edge been visited yet
+			gtreel$nodes[tree_phylo$edge[n,1],2] = tree_phylo$edge[n,2] # child left
+		} else {
+			gtreel$nodes[tree_phylo$edge[n,1],3] = tree_phylo$edge[n,2] # child right
+		}
+		gtreel$nodes[tree_phylo$edge[n,2],4] = tree_phylo$edge.length[n]
+		if (tree_phylo$edge[n,2]<=(tree_phylo$Nnode+1)) { gtreel$nodes.label[tree_phylo$edge[n,2]] = tree_phylo$tip.label[tree_phylo$edge[n,2]] } # tip
+		if (!is.null(tree_phylo$node.label)) { gtreel$nodes.label[tree_phylo$edge[n,1]] = tree_phylo$node.label[tree_phylo$edge[n,1]-(tree_phylo$Nnode+1)] }
 	}
 	return(gtreel)
 }
+
 
 ### plot tree in format louis using ape package (or ade4)
 plotree <- function(gtreel,location){
@@ -972,7 +971,8 @@ lconverttree_old2 <- function(gtreel){
   class(tree_phylo) = "phylo"
   return(tree_phylo)
 }
-#
+
+### convert louis tree structure to ape phylo tree structure (edges), assuming tips appear first in gtreel
 lconverttree <- function(gtreel,alphab=0){
   tipid = which(is.na(gtreel$nodes[,2]))
   if (alphab==1){  tipid = as.integer(sort(as.character(tipid))) } #tips sorted alphabetically
@@ -1015,37 +1015,23 @@ lconverttree <- function(gtreel,alphab=0){
 ##
 ### get all possible locations for internal nodes
 internal_loc <- function(gtreel, loc_tips){
-	locations = vector("list", length(gtreel[,1]))
-	for (n in 1:length(gtreel[,1])) {
-		if (is.na(gtreel[n,2]) & is.na(gtreel[n,3])) { ## tip
+	locations = vector("list", length(gtreel$nodes[,1]))
+	for (n in 1:length(gtreel$nodes[,1])) {
+		if (is.na(gtreel$nodes[n,2]) & is.na(gtreel$nodes[n,3])) { ## tip
 			locations[[n]] = loc_tips[n]
 		} else {
-			locations[[n]] = unique(c(ftips(gtreel[n,2], gtreel, loc_tips), ftips(gtreel[n,3], gtreel, loc_tips)))
+			locations[[n]] = unique(c(ftips(gtreel$nodes[n,2], gtreel, loc_tips), ftips(gtreel$nodes[n,3], gtreel, loc_tips)))
 		}
 	}
 	return(locations)
 }
 
-### get all possible locations for internal nodes
-internal_loc <- function(gtreel,loc_tips){
-	locations = vector("list",length(gtreel[,1]))
-	for (n in 1:length(gtreel[,1])) {
-		if (is.na(gtreel[n,2]) & is.na(gtreel[n,3])) { ## tip
-			locations[[n]] = loc_tips[n]
-		} else {
-			locations[[n]] = unique(c(ftips(gtreel[n,2],gtreel,loc_tips),ftips(gtreel[n,3],gtreel,loc_tips)))
-		}
-	}
-	return(locations)
-}
-
-##
 ### return the set of location of the tips below a node
 ftips <- function(node, gtreel, loc_tips){
-	if (is.na(gtreel[node,2]) & is.na(gtreel[node,3])) {
+	if (is.na(gtreel$nodes[node,2]) & is.na(gtreel$nodes[node,3])) {
 		return(loc_tips[node])
 	} else {
-		return(unique(c(ftips(gtreel[node,2], gtreel, loc_tips), ftips(gtreel[node,3], gtreel, loc_tips))))
+		return(unique(c(ftips(gtreel$nodes[node,2], gtreel, loc_tips), ftips(gtreel$nodes[node,3], gtreel, loc_tips))))
 	}
 }
 
@@ -1074,24 +1060,22 @@ ftips_rep <- function(node, gtreel, loc_tips){
 ##
 ### return the set of nodes below a given node
 children <- function(node, gtreel){
-	if (is.na(gtreel[node,2]) & is.na(gtreel[node,3])) {
+	if (is.na(gtreel$nodes[node,2]) & is.na(gtreel$nodes[node,3])) {
 		return(node)
 	} else {
-		return(c(node, children(gtreel[node,2], gtreel), children(gtreel[node,3], gtreel)))
+		return(c(node, children(gtreel$nodes[node,2], gtreel), children(gtreel$nodes[node,3], gtreel)))
 	}
 }
 
-##
 ### return the set of tips below a given node
 childrentip <- function(node, gtreel){
-	if (is.na(gtreel[node,2]) & is.na(gtreel[node,3])) {
+	if (is.na(gtreel$nodes[node,2]) & is.na(gtreel$nodes[node,3])) {
 		return(node)
 	} else {
-		return(c(childrentip(gtreel[node,2], gtreel), childrentip(gtreel[node,3], gtreel)))
+		return(c(childrentip(gtreel$nodes[node,2], gtreel), childrentip(gtreel$nodes[node,3], gtreel)))
 	}
 }
 
-##
 ### get the node absolute heights of internal nodes from branch length to parent
 internal_node_height <- function(gtreel){
   
@@ -1107,7 +1091,6 @@ internal_node_height <- function(gtreel){
   return(inode_height)
 }
 
-##
 ### return the height of a node
 height <- function(node, gtreel){
   if (is.na(gtreel$nodes[node,2]) & is.na(gtreel$nodes[node,3])) {
@@ -1129,9 +1112,8 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
 	## to compute history likelihood
 	history_proba_val = 0
 	if (model==4 && locations[[1]][1]>0) { ## only one migration per internal node possible
-		
-		rootn = which(is.na(gtreel[,1]))
-		locations_sampled = matrix(0,nrow=length(gtreel[,1]),ncol=(1+(dim(space)[1]))) ## location(destination) | distance(s)
+		rootn = which(is.na(gtreel$nodes[,1]))
+		locations_sampled = matrix(0,nrow=length(gtreel$nodes[,1]),ncol=(1+(dim(space)[1]))) ## location(destination) | distance(s)
 		## get the absolute height of each internal node
 		inode_height = internal_node_height(gtreel)
 		## need to treat the nodes from the oldest to the most recent
@@ -1149,9 +1131,9 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
 			if ( getL==1 || getL==2 ){ ploc = locations[[node_id[n]]]
 			}else{ ploc = locations_sampled[node_id[n],1]} ## parent's location
 			if ( getL==1 || getL==2 ){## return likelihood of a specific migration event out of the possible ones
-				siblings = which(gtreel[,1]==node_id[n])
+				siblings = which(gtreel$nodes[,1]==node_id[n])
 				if (length(siblings)==0) {next}
-				if (getL==2 && length(which(gtreel[,1]==siblings[1]))==0 && length(which(gtreel[,1]==siblings[2]))==0) {next} ## hastings for loc sampling, ignore last migrations
+				if (getL==2 && length(which(gtreel$nodes[,1]==siblings[1]))==0 && length(which(gtreel$nodes[,1]==siblings[2]))==0) {next} ## hastings for loc sampling, ignore last migrations
 				if (locations[[siblings[1]]]==ploc && locations[[siblings[2]]]!=ploc) {
 					noddest = siblings[2]
 					locdest = locations[[siblings[2]]]
@@ -1174,7 +1156,7 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
 #print(occupied)
 			}else{## sample a migration from the father's location if children nodes have more than 1 possible location, according to model (samunif!=1) or uniformly in the list of possible node location (samunif==1)
 				migration_event = c(0,0,1,0,vector('numeric',dim(space)[1])) ## default: proba equals 1
-				siblings = which(gtreel[,1]==node_id[n])
+				siblings = which(gtreel$nodes[,1]==node_id[n])
 				loc_sib1 = locations[[siblings[1]]]
 				loc_sib2 = locations[[siblings[2]]]
 				if (length(loc_sib1)==1 && length(loc_sib2)==1){
@@ -1271,13 +1253,13 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
 		history = sim_mig(space,sigma,lambda,tau,0,numtip)[[1]] # limit to numtip leaves
 		print(paste('number of simulated migration events:',nrow(history)-1))
 		treeloc = mig2treel(history)
-		gtreel = treeloc[[1]]
+		gtreel$nodes = treeloc[[1]]
 		locations_sampled = treeloc[[3]]
 
     # sort and reorder gtreel for consistent format
-		reordered = sort_gtreel(gtreel, locations_sampled)
+		reordered = sort_gtreel(gtreel$nodes, locations_sampled)
 
-		gtreel = reordered[[1]]
+		gtreel$nodes = reordered[[1]]
 
 		locations_sampled = reordered[[2]]
 
@@ -1285,7 +1267,6 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
 	return(list(locations_sampled,history_proba_val,gtreel))
 }
 
-##
 ## simulate a sequence of migration events
 sim_mig <- function(space, sigma, lambda, tau, timelimit, poplimit=0){
 	occupied = vector('numeric', ncol(space))
@@ -1670,20 +1651,26 @@ sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_sim
 
 ##
 ## run MCMC for estimating variance and proba of colonising a previously occupied location
-	# freq: how often the estimated values are recorded
-	# Nstep_sigma: how many steps to do for estimating sigma at each iteration
-	# Nstep_lambda: how many steps to do for estimating lambda at each iteration
-	# est_sigma: do not estimate sigma (0), use a uniform prior (1) or a dual prior (2)
+# freq: how often the estimated values are recorded
+# Nstep_sigma: how many draws of sigma values at each iteration
+# Nstep_lambda: how many draws of lambda at each iteration
+# Nstep_step: how many draws of internal locations at each iteration
+# Nstep_step: how many draws of genealogy at each iteration
+# est_sigma: do not estimate sigma (0), use a uniform prior (1) or a dual prior (2)
 mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=c(1,1), est_lambda=1, est_tau=1, sample_geneal=0, sample_loc=0, 
                          plot_phylo=0, plot_MCMC=0, save_MCMC=0,
                          Nstep=1000, freq=1, Nstep_sigma=1, Nstep_lambda=1, Nstep_loc=1, Nstep_genealogy=1, Nstep_tau=1, pchange=0, ess_lim=100,
-                         model=4, show_loc=0, filena_loc, file_tracer, file_tree){
+                         model=4, show_loc=0, filena_loc=NA, file_tracer=NA, file_tree=NA, dmethod="distkm"){
   
   if (!is.na(file_tracer)){
     write.table(t(c(0, rep(0, dim(space)[1]), 0, 0, 0)), file = file_tracer, row.names = FALSE, col.names = c("Sample", paste("Sigma", 1:dim(space)[1]), "Lambda", "Tau", "LogLikelihood"), sep = "\t", append = FALSE)
   }
   if (!is.na(file_tree)){
-    write("", file = file_tree, append = FALSE)
+    #write("", file = file_tree, append = FALSE)
+    file.create(file = file_tree)
+  }
+  if (!is.na(filena_loc)){
+    file.create(file = filena_loc)
   }
 
   sigma_simul = simul_values[[1]]
@@ -1691,66 +1678,67 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
   tau_simul = simul_values[[3]]
   locations_sim = simul_values[[4]]
   
-	Ndim = dim(space)[1]
-	tnumi = sum(is.na(gtreel[,2])) ## number of tips (=individuals)
-	no_metropolis = 0 ## debug: to not use metropolis ratio (no data)
-	
-	mat_Dists = space_dist(space)
+  Ndim = dim(space)[1]
+  tnumi = sum(is.na(gtreel$nodes[,2])) ## number of tips
+  no_metropolis = 0 ## debug: to not use metropolis ratio (no data)
+  
+  #mat_Dists = space_dist(space)
+  mat_Dists = space_dist(space, dmethod)
   
   if (sum(est_sigma)>0) sigma = rep(0,Ndim)
-	sig_lower_limit = 0 # note that when new value of sigma proposed is very low then likelihood is -Inf then exp(metropolis+hastings)==0 then new value is rejected
-	sig_upper_limit = unlist(lapply(lapply(mat_Dists,max),sigma_upperlim)) # limit on prior for sampling sigma during mcmc
+  sig_lower_limit = 0 # note that when new value of sigma proposed is very low then likelihood is -Inf then exp(metropolis+hastings)==0 then new value is rejected
+  print("Compute sigma upper limit(s)...")
+  sig_upper_limit = unlist(lapply(lapply(mat_Dists,max),sigma_upperlim)) # limit on prior for sampling sigma during mcmc
   sigma_threshold = unlist(lapply(lapply(mat_Dists,mean),sigma_upperlim)) # threshold below which limited dispersal is inferred
   if (sum(est_sigma==2)>0){
     sig_lam = rep(0,Ndim)
     sig_toplim = rep(0,Ndim)
-    alpha = .5 ## proba for drawing prior on sigma equal to Uniform
+    alpha = .5 ## probability for drawing prior on sigma equal to Uniform
   }
-	for (nd in 1:Ndim){
-  	if (est_sigma[nd]>0){
-  	  sigma[nd] = sig_upper_limit[nd]/2
-  	  print(paste("sigma upper limit",nd,":",sig_upper_limit[nd]))
-  	}else{
-  		sigma[nd] = sigma_simul[nd]
-  	}
-    if(est_sigma[nd]==2){
-    	sig_lam[nd] = -log(0.01)/sig_upper_limit[nd]
-    	sig_toplim[nd] = 1-exp(-sig_lam[nd]*sig_upper_limit[nd])
+  for (nd in 1:Ndim){
+    if (est_sigma[nd]>0){
+      sigma[nd] = sig_upper_limit[nd]/2
+      print(paste("sigma upper limit",nd,":",format(round(sig_upper_limit[nd], 2), nsmall = 2)))
+    }else{
+      sigma[nd] = sigma_simul[nd]
     }
-	}
+    if(est_sigma[nd]==2){
+      sig_lam[nd] = -log(0.01)/sig_upper_limit[nd]
+      sig_toplim[nd] = 1-exp(-sig_lam[nd]*sig_upper_limit[nd])
+    }
+  }
   
-	lam_lower_limit = 1e-3
-	lam_upper_limit = 1e3
-	if (est_lambda==1){ ## start at random
-		#lambda = runif(1,min=lam_lower_limit,max=lam_upper_limit)
+  lam_lower_limit = 1e-3
+  lam_upper_limit = 1e3
+  if (est_lambda==1){ ## start at random
+    #lambda = runif(1,min=lam_lower_limit,max=lam_upper_limit)
     lambda = 1 ## start at 1, i.e. no competition
-	}else{
-		lambda = lambda_simul
-	}
-
-	tau_lower_limit = 1e-3
-	tau_upper_limit = 1e3
-	if (est_tau==1){ ## start at random
-		#tau = runif(1,min=tau_lower_limit,max=tau_upper_limit)
+  }else{
+    lambda = lambda_simul
+  }
+  
+  tau_lower_limit = 1e-3
+  tau_upper_limit = 1e3
+  if (est_tau==1){ ## start at random
+    #tau = runif(1,min=tau_lower_limit,max=tau_upper_limit)
     # start at average rate according to tree height and number of internal nodes
     tau = max(internal_node_height(gtreel)) / (tnumi-1)
-	}else{
-		tau = tau_simul
-	}
-
-	if (sample_loc==1 | length(sample_geneal[[1]])>1){ ## sample locations of all internal nodes, if sample_loc==0 the true internal nodes locations are used
+  }else{
+    tau = tau_simul
+  }
+  
+  if (sample_loc==1 | length(sample_geneal[[1]])>1){ ## sample locations of all internal nodes, if sample_loc==0 the true internal nodes locations are used
     if (length(sample_geneal[[1]])>1){
-		  ind = sample(1:length(sample_geneal),1)
-		  tree_phylo = sample_geneal[[ind]]
-		  gtreel = converttree(tree_phylo)
-		  gtreelikelihood_curr = treelikelihood[[ind]]
+      ind = sample(1:length(sample_geneal),1)
+      tree_phylo = sample_geneal[[ind]]
+      gtreel = converttree(tree_phylo)
+      #gtreelikelihood_curr = treelikelihood[[ind]]
     }else{
       tree_phylo = lconverttree(gtreel)
     }
-		real_loc = locations_sim[,1]
-		locations = internal_loc(gtreel,locations_sim[,1]) ## get list of possible locations for all nodes, uniform
-		## draw migrations uniformly
-		#locations_sampled = sim_history(gtreel,space,rep(sig_upper_limit,Ndim),0.5,1,locations,0,model,1)[[1]]
+    real_loc = locations_sim[,1]
+    locations = internal_loc(gtreel,locations_sim[,1]) ## get list of possible locations for all nodes, Uniform
+    ## draw migrations uniformly
     locations_sampled = sim_history(gtreel,space,sig_upper_limit,1,tau_upper_limit/2,locations,0,model,1)[[1]]
     check_treel(gtreel,locations_sampled)
 		if (show_loc==1){
@@ -2104,7 +2092,7 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 ### if mig[1]>0 then only consider this particular migration out of all possible in mode 2 (must be vector of 3 elements with third element being the time to wait for this migration to happen)
 new_migration <- function(space, occupied, sigma, lambda, tau, departure, destination, mig){
   migr <- function(space, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig){
-    .C("migC", space, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig)}
+    .C("migC", space, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig, PACKAGE = "phyloland")}
   
   space_dimC = as.integer(nrow(space))
   space_sizeC = as.integer(ncol(space))
@@ -2147,91 +2135,48 @@ effSaSize <- function(x){ ## http://support.sas.com/documentation/cdl/en/statug/
 }
 
 ##
-## get some stats from MCMC output
-stat_phyloland <- function(mcmco,plot_MCMC=0,save_MCMC=0){
-	output_val = mcmco
-  Nstep = output_val[length(output_val[,1]),1]
-	if (plot_MCMC==1) {
-		## Attention aux variables non declarees
-		#hist(output_val[,2],nclass=50,xlim=c(.1,3))
-		hist(output_val[,2],nclass=50)
-		par(mfrow=c(2,1))
-		plot(1:length(output_val[,1]),output_val[,2],type="l")
-		plot(output_val[,3],type="l",col="red")
-		dev.copy2eps(file=paste("output_val",sigma_simul,"_",Nstep,".eps",sep=""))
-	}
-	if (save_MCMC==1) {
-		filename = format(Sys.time(),"%a%d%b%Y_%H%M%S")
-		## need a first sample at 0 to be read correctly by tracer
-		write.table(rbind(c(0,rep(0,Ndim),0,0,0),output_val),file=paste(filename,".log",sep=""), row.names=FALSE,col.names=c("Sample",paste("Sigma",1:Ndim),"Lambda","Tau","LogLikelihood"),sep="\t")
-		print(paste(filename,".log"," written",sep=""))
-		system(paste("tracer ",filename,".log ","&",sep=""))
-	}
-	stat = vector('numeric',dim(mcmco)[2]-4)
-	smod = vector('numeric',dim(mcmco)[2]-4)
-	slast = vector('numeric',dim(mcmco)[2]-4)
-	smean = vector('numeric',dim(mcmco)[2]-4)
-	squant = matrix(0,(dim(mcmco)[2]-4),7)
-	## SIGMAS ##
-	for (n in 1:(dim(mcmco)[2]-4)){
-		id = n+1
-		## p-value, number of samples below the threshold above which Ho can't be rejected
-		#stat[n] = sum(mcmco[,id]>1.117) / nrow(mcmco)
-		## number of samples equal to 2.527
-		stat[n] = sum(mcmco[,id]==2.527) / nrow(mcmco)
-		## ignore values equal to 2.527
-		samplevals = mcmco[which(mcmco[,id]!=2.527),id]
-		if (length(samplevals)>1){ ## no or only one value different to 2.527
-			## find the most frequent value (mode) of the distribution of sigma
-			den = density(samplevals)
-			smod[n] = den$x[which(den$y==max(den$y))[1]]
-			## quantiles
-			squant[n,] = quantile(samplevals,probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
-			smean[n] = mean(samplevals)
-			slast[n] = samplevals[length(samplevals)]
-		}else if (length(samplevals)==1){ ## no or only one value different to 2.527
-			## find the most frequent value (mode) of the distribution of sigma
-			smod[n] = samplevals
-			## quantiles
-			squant[n,] = quantile(samplevals,probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
-			smean[n] = samplevals
-			slast[n] = samplevals
-		}else{
-			smod[n] = 2.527
-			squant[n,] = rep(2.527,7)
-			smean[n] = 2.527
-			slast[n] = 2.527
-		}
-# 		## compute the area for the mode
-# 		norma_factor = pnorm(1,0,smodL)-pnorm(0,0,smodL)
-# 		x = sqrt( -2 * (smodL)^2 * log(norma_factor*sqrt(2*pi)*smodL) )
-# 		areaL = x + (pnorm(1,0,smodL)-pnorm(x,0,smodL))/norma_factor
-	}
-	## LAMBDA ##
-	## find the most frequent value (mode) of the distribution of lambda
-	den = density(mcmco[,(dim(mcmco)[2]-2)])
-	lmod = den$x[which(den$y==max(den$y))[1]]
-	lquant = quantile(mcmco[,(dim(mcmco)[2]-2)],probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
-	lmean = mean(mcmco[,(dim(mcmco)[2]-2)])
-	llast = mcmco[nrow(mcmco),(dim(mcmco)[2]-2)]
-	## TAU ##
-	## find the most frequent value (mode) of the distribution of lambda
-	den = density(mcmco[,(dim(mcmco)[2]-1)])
-	tmod = den$x[which(den$y==max(den$y))[1]]
-	tquant = quantile(mcmco[,(dim(mcmco)[2]-1)],probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
-	tmean = mean(mcmco[,(dim(mcmco)[2]-1)])
-	tlast = mcmco[nrow(mcmco),(dim(mcmco)[2]-1)]
-	
-	## FORMAT OUTPUT ##
-	#strout = paste(pval[1],toString(squant[1,]),smod[1],smean[1],slast[1],sep=",")
-
-	for (n in 1:(dim(mcmco)[2]-4)){
-		if (n==1){ strout = paste(round(stat[n],3),toString(round(squant[n,],3)),round(smod[n],3),round(smean[n],3),round(slast[n],3),sep=",") }
-		else if (n>1){ strout = paste(strout,round(stat[n],3),toString(round(squant[n,],3)),round(smod[n],3),round(smean[n],3),round(slast[n],3),sep=",") }
-	}
-	strout = paste(strout,toString(round(lquant,3)),round(lmod,3),round(lmean,3),round(llast,3),toString(round(tquant,3)),round(tmod,3),round(tmean,3),round(tlast,3),sep=",")
-	return(strout)
-}
+## 
+stat_phyloland <- function(mcmco, plot_MCMC = 0, save_MCMC = 0){
+    output_val = mcmco
+    smod = vector('numeric',dim(mcmco)[2]-4)
+    smean = vector('numeric',dim(mcmco)[2]-4)
+    squant = matrix(0,(dim(mcmco)[2]-4),7)
+    slast = vector('numeric',dim(mcmco)[2]-4)
+    for (n in 1:(dim(mcmco)[2]-4)){
+      id = n+1
+      samplevals = mcmco[,id]
+      if (length(samplevals)>1){ 
+        den = density(samplevals)
+        smod[n] = den$x[which(den$y==max(den$y))[1]]
+        squant[n,] = quantile(samplevals,probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
+        smean[n] = mean(samplevals)
+        slast[n] = samplevals[length(samplevals)]
+      }else if (length(samplevals)==1){
+        smod[n] = samplevals
+        squant[n,] = quantile(samplevals,probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
+        smean[n] = samplevals
+        slast[n] = samplevals
+      }
+    }
+    den = density(mcmco[,(dim(mcmco)[2]-2)])
+    lmod = den$x[which(den$y==max(den$y))[1]]
+    lquant = quantile(mcmco[,(dim(mcmco)[2]-2)],probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
+    lmean = mean(mcmco[,(dim(mcmco)[2]-2)])
+    llast = mcmco[nrow(mcmco),(dim(mcmco)[2]-2)]
+    den = density(mcmco[,(dim(mcmco)[2]-1)])
+    tmod = den$x[which(den$y==max(den$y))[1]]
+    tquant = quantile(mcmco[,(dim(mcmco)[2]-1)],probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
+    tmean = mean(mcmco[,(dim(mcmco)[2]-1)])
+    tlast = mcmco[nrow(mcmco),(dim(mcmco)[2]-1)]
+    
+    for (n in 1:(dim(mcmco)[2]-4)){
+      if (n==1){ strout = paste(toString(round(squant[n,],3)),round(smod[n],3),round(smean[n],3),round(slast[n],3),sep=",") }
+      else if (n>1){ strout = paste(strout,toString(round(squant[n,],3)),round(smod[n],3),round(smean[n],3),round(slast[n],3),sep=",") }
+    }
+    strout = paste(strout,toString(round(lquant,3)),round(lmod,3),round(lmean,3),round(llast,3),
+                   toString(round(tquant,3)),round(tmod,3),round(tmean,3),round(tlast,3),sep=",")
+    return(strout)
+  }
 
 ## get some stats on migration and locations
 sampled_mig <- function(sampledloc,locations_sampled,gtreel,space, plot=0){
@@ -2574,9 +2519,20 @@ check_treel <- function(gtreel,locations=NA){
         error_found = 1
       }
     }
-    if (  (is.na(filsg) & !is.na(filsd))  |  (!is.na(filsg) & is.na(filsd))  ){
-      print("error 2")
-      error_found = 1
+    den = density(mcmco[,(dim(mcmco)[2]-2)])
+    lmod = den$x[which(den$y==max(den$y))[1]]
+    lquant = quantile(mcmco[,(dim(mcmco)[2]-2)],probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
+    lmean = mean(mcmco[,(dim(mcmco)[2]-2)])
+    llast = mcmco[nrow(mcmco),(dim(mcmco)[2]-2)]
+    den = density(mcmco[,(dim(mcmco)[2]-1)])
+    tmod = den$x[which(den$y==max(den$y))[1]]
+    tquant = quantile(mcmco[,(dim(mcmco)[2]-1)],probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
+    tmean = mean(mcmco[,(dim(mcmco)[2]-1)])
+    tlast = mcmco[nrow(mcmco),(dim(mcmco)[2]-1)]
+    
+    for (n in 1:(dim(mcmco)[2]-4)){
+      if (n==1){ strout = paste(toString(round(squant[n,],3)),round(smod[n],3),round(smean[n],3),round(slast[n],3),sep=",") }
+      else if (n>1){ strout = paste(strout,toString(round(squant[n,],3)),round(smod[n],3),round(smean[n],3),round(slast[n],3),sep=",") }
     }
     if ( !is.na(filsg) ){
       if ( gtreel$nodes[filsg,1]!=n ){
@@ -2976,14 +2932,14 @@ to_xml <- function(seqbase_xml,seqbase2_xml,tree_par,seq_nex,fileXML,topo_given=
 ancestors <- function(node,gtreel){
 	res=vector("numeric",0)
 	ind<-node
-	is_root=is.na(gtreel[ind,1])
-	if (is.na(gtreel[node,1])){
+	is_root=is.na(gtreel$nodes[ind,1])
+	if (is.na(gtreel$nodes[node,1])){
 		is_root=TRUE
 		}
 	while (is_root==FALSE){
-		ind=gtreel[ind,1]
+		ind=gtreel$nodes[ind,1]
 		res[length(res)+1]=ind
-		is_root=is.na(gtreel[ind,1])
+		is_root=is.na(gtreel$nodes[ind,1])
 		}
 	return(res)
 	}
@@ -3038,9 +2994,22 @@ treeLikeli <- function(line, pattern){
 # compute pairwise distances of space
 space_dist <- function(space, dmethod="euclidean"){
   mat_Dists = list()
-  for (n in 1:dim(space)[1]){
-    #mat_Dists[[n]] = abs(outer(space[n,],space[n,],"-"))
-    mat_Dists[[n]] = dist(space[n,], diag=T, upper=T, method=dmethod)
+  if (dmethod=="distkm"){ # separate latitudinal and longitudinal kernels by average other dimension when computing earth distance in km
+    mat_Dists[[1]]=array(0,c(ncol(space),ncol(space)))
+    mat_Dists[[2]]=array(0,c(ncol(space),ncol(space)))
+    for (a in 1:(ncol(space)-1)){
+      for (b in (a+1):ncol(space)){
+        mat_Dists[[1]][a,b] = distkm( space[1,a], space[1,b], (space[2,a]+space[2,b])/2, (space[2,a]+space[2,b])/2 )
+        mat_Dists[[1]][b,a] = mat_Dists[[1]][a,b]
+        mat_Dists[[2]][a,b] = distkm( (space[1,a]+space[1,b])/2, (space[1,a]+space[1,b])/2, space[2,a], space[2,b] )
+        mat_Dists[[2]][b,a] = mat_Dists[[2]][a,b]
+      }
+    }
+    
+  }else{
+    for (n in 1:dim(space)[1]){
+      mat_Dists[[n]] = dist(space[n,], diag=T, upper=T, method=dmethod)
+    }
   }
   return(mat_Dists)
 }
@@ -3432,21 +3401,21 @@ sort_gtreel <- function(gtreel, locations){
 
 # look for node of equal heights in the tree, if found that break the try by randomly changing the corresponding node heights
 # write a set of trees if numrep>1
-break_node_height_tie <- function(gtreel, numrep=100){
+break_node_height_tie <- function(gtreel, tiplabel, numrep=100){
   inode_height = internal_node_height(gtreel)
   if ( sum( duplicated(inode_height[which(inode_height>0)]) )==0 ) {stop('no pair of internal nodes with equal heights')} # no internal nodes have identical heights
   node_id = sort(inode_height,decreasing=TRUE,index.return=TRUE)$ix # treat nodes from oldest to most recent
   treeset <- vector("list", numrep)
   class(treeset) <- "multiPhylo"
   for (nrep in 1:numrep){
-    #     print(nrep)
+#     print(nrep)
     gtreelN = gtreel
     n=1
     while (inode_height[node_id[n]]>0) { # stop when reached the first tip
       #     x11(); plotree(gtreel,seq(1,15))
       m=n+1
       if (inode_height[node_id[n]]==inode_height[node_id[m]]) { # tie found need to break it
-        #         print(paste("node:",node_id[n]))
+#         print(paste("node:",node_id[n]))
         L_to_break=inode_height[node_id[n]]
         maxL=inode_height[node_id[n-1]]
         while (inode_height[node_id[m]]==L_to_break) {
@@ -3462,21 +3431,20 @@ break_node_height_tie <- function(gtreel, numrep=100){
           sdev=0.05*(maxL-minL)
           new_height = qnorm(runif(1, pnorm(minL, mean=L_to_break, sd=sdev), pnorm(maxL, mean=L_to_break, sd=sdev)), mean=L_to_break, sd=sdev)
           height_correction = new_height - inode_height[node_id[p]]
-          #           print(height_correction)
-          gtreelN[node_id[p],4] = gtreelN[node_id[p],4] + (height_correction)
-          gtreelN[gtreelN[node_id[p],2:3],4] = gtreelN[gtreelN[node_id[p],2:3],4] - (height_correction)
+#           print(height_correction)
+          gtreelN$nodes[node_id[p],4] = gtreelN$nodes[node_id[p],4] + (height_correction)
+          gtreelN$nodes[gtreelN$nodes[node_id[p],2:3],4] = gtreelN$nodes[gtreelN$nodes[node_id[p],2:3],4] - (height_correction)
         }
       }
       n=m
     }
-    #     x11(); plotree(gtreelN,seq(1,15))
+#     x11(); plotree(gtreelN,seq(1,15))
     treeset[[nrep]] = lconverttree(gtreelN)
   }
   return(treeset)
 }
 
-# get distance in km between coordinates in decimal (convert from degrees/minutes/seconds to decimal?)
-distkm <- function(lat1,lat2,long1,long2){
+distkm <- function(lat1,lat2,long1,long2){ # get distance in km between coordinates in decimal (convert from degrees/minutes/seconds to decimal?)
   lat1r = (lat1/180) * pi # radian
   lat2r = (lat2/180) * pi
   long1r = (long1/180) * pi
