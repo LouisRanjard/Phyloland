@@ -466,7 +466,8 @@ lsos <- function(..., n=10) {
 }
 
 ### create a space by uniformly sampling coordinates
-create_landscape <- function(space_size,space_dim,max_dist=1){
+create_landscape <- function(space_size,space_dim,max_dist=10,usedegree=0){
+ #If usedegree = 1 we use the Signed degrees format  
 	if (space_dim==1) {
 		space = runif(space_size-2,min=0,max=1)
 		return(rbind(c(0,space,1)))
@@ -486,9 +487,53 @@ create_landscape <- function(space_size,space_dim,max_dist=1){
 # 		return(rbind(Lat,Long))
 # 	}
   }else if (space_dim==2){
-    Lat = runif(space_size,min=0,max=max_dist)
-    Long = runif(space_size,min=0,max=max_dist)
-    return(rbind(Lat,Long))
+    if(usedegree==0){
+      Lat = runif(space_size,min=0,max=max_dist)
+      Long = runif(space_size,min=0,max=max_dist)
+      return(rbind(Lat,Long))
+    }
+    else if(usedegree ==1){
+      library(geosphere)
+      long1=runif(1, min = -180, max = 180)
+      lat1=runif(1,min = -90, max = 90)
+      if(space_size==1)
+      {
+        return(rbind(lat1,long1))
+      }
+      else if(space_size>=2)
+      {
+        P1=cbind(long1, lat1)
+        angle=runif(1, min = 0, max = 360)
+        P2=destPoint(P1,angle,max_dist*1000)
+        long2=P2[1]
+        lat2=P2[2]
+        if(space_size>2)
+        {
+          if(lat1<=lat2){
+            Lat=runif(space_size-2,min=lat1,max=lat2)
+          } else {
+            Lat=runif(space_size-2,min=lat2,max=lat1)
+          }
+          if(long1<=long2){
+            Long=runif(space_size-2,min=long1,max=long2)
+          } else {
+            Long=runif(space_size-2,min=long2,max=long1)
+          }
+        }else {
+          Lat=c()
+          Long=c()
+        }
+        Lat=union(Lat,c(lat1))
+        Lat=union(Lat,c(lat2))
+        Long=union(Long,c(long1))
+        Long=union(Long,c(long2))
+        return(rbind(Lat,Long))
+     }
+      #append(Lat, lat1,after = space_size-1)
+      #append(Lat,lat2,after = space_size)
+      #append(Long, long1,after =  space_size-1)
+      #append(Long, long2,after =  space_size)
+    }
   }
 }
 
@@ -717,21 +762,21 @@ mig2treel <- function(history,plot_tree=0){
 	## root
 	location[1] = history[1,1]
 	locations_sampled[1,] = c(history[1,1],rep(0,ncol(history)-4))
-	gtreel$nodes [1,] = c(NA,2,3,NA)
+	gtreel$nodes[1,] = c(NA,2,3,NA)
 	istip[1] = 1
 	for (i in 1:nmig){
 		possibletips = which(location==history[i,1] & istip==1)
 		nodeid = possibletips[sample(length(possibletips),1)] ## uniform to choose which tip the migration starts from
-		gtreel$nodes [nodeid,2:3] = c(2*i,2*i+1)
+		gtreel$nodes[nodeid,2:3] = c(2*i,2*i+1)
 		#time_to_father = runif(1,0:1) #rexp(1,rate=1)
 		wait_time = history[i,4]
-		gtreel$nodes [nodeid,4] = gtreel$nodes [nodeid,4] + wait_time
+		gtreel$nodes[nodeid,4] = gtreel$nodes[nodeid,4] + wait_time
 		#gtreel[2*i,1:4] = c(nodeid,NA,NA,wait_time)
 		#gtreel[2*i+1,1:4] = c(nodeid,NA,NA,wait_time)
-		gtreel$nodes [2*i,1:3] = c(nodeid,NA,NA)
-		gtreel$nodes [2*i+1,1:3] = c(nodeid,NA,NA)
+		gtreel$nodes[2*i,1:3] = c(nodeid,NA,NA)
+		gtreel$nodes[2*i+1,1:3] = c(nodeid,NA,NA)
 		istip[nodeid] = 0
-		gtreel$nodes [which(istip==1),4] = gtreel$nodes [which(istip==1),4] + wait_time ## increase node father heights of the existing tips
+		gtreel$nodes[which(istip==1),4] = gtreel$nodes[which(istip==1),4] + wait_time ## increase node father heights of the existing tips
 		istip[2*i] = 1
 		istip[2*i+1] = 1
 		staygo = sample(1:2,2,replace=FALSE) ## uniform to choose which node stays on its father loc
@@ -742,21 +787,17 @@ mig2treel <- function(history,plot_tree=0){
 		#nodeid = nodeid + 1
 #print(istip)
 	}
+	gtreel$nodes.label=location
 	## extra step to define the length of the tip branches, this is given by the last migration
-	gtreel$nodes [which(istip==1),4] = gtreel$nodes [which(istip==1),4] + history[nmig+1,4]
-#print(istip)
+	gtreel$nodes[which(istip==1),4] = gtreel$nodes[which(istip==1),4] + history[nmig+1,4]
+  #print(istip)
 	if (plot_tree==1){
 		print(history)
 		print(rbind(seq(1,length(location)),location))
-		print(gtreel$nodes )
-		treepar = treel2par(gtreel$nodes)
-#print(locations_sampled)
-		print(treepar)
-		## replace node id by their location id (needs library(gsubfn))
-		#treepar = gsubfn('t([0-9]*):',function(x) paste(location[as.numeric(x)],':',sep=''),treepar)
-		#treepar = gsubfn('t([0-9]*);',function(x) paste(location[as.numeric(x)],';',sep=''),treepar) ## special case for the root (finish with ";")
-		treepar = gsubfn('t([0-9]*):',function(x) paste(as.numeric(x),'-L',location[as.numeric(x)],':',sep=''),treepar)
-		treepar = gsubfn('t([0-9]*);',function(x) paste(as.numeric(x),'-L',location[as.numeric(x)],';',sep=''),treepar) ## special case for the root (finish with ";")
+		print(gtreel$nodes)
+		treepar = treel2par(gtreel)
+    #print(locations_sampled)
+		#print(treepar)
 		plot.phylo(read.tree(file="",text=treepar),show.tip.label=TRUE,show.node.label=TRUE)
 		print(treepar)
 	}
@@ -2092,7 +2133,7 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 ### if mig[1]>0 then only consider this particular migration out of all possible in mode 2 (must be vector of 3 elements with third element being the time to wait for this migration to happen)
 new_migration <- function(space, occupied, sigma, lambda, tau, departure, destination, mig){
   migr <- function(space, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig){
-    .C("migC", space, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig, PACKAGE = "phyloland")}
+    .C("migC", space, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig)}
   
   space_dimC = as.integer(nrow(space))
   space_sizeC = as.integer(ncol(space))
@@ -2519,20 +2560,9 @@ check_treel <- function(gtreel,locations=NA){
         error_found = 1
       }
     }
-    den = density(mcmco[,(dim(mcmco)[2]-2)])
-    lmod = den$x[which(den$y==max(den$y))[1]]
-    lquant = quantile(mcmco[,(dim(mcmco)[2]-2)],probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
-    lmean = mean(mcmco[,(dim(mcmco)[2]-2)])
-    llast = mcmco[nrow(mcmco),(dim(mcmco)[2]-2)]
-    den = density(mcmco[,(dim(mcmco)[2]-1)])
-    tmod = den$x[which(den$y==max(den$y))[1]]
-    tquant = quantile(mcmco[,(dim(mcmco)[2]-1)],probs=c(0,.05,.25,.5,.75,.95,1),names=FALSE)
-    tmean = mean(mcmco[,(dim(mcmco)[2]-1)])
-    tlast = mcmco[nrow(mcmco),(dim(mcmco)[2]-1)]
-    
-    for (n in 1:(dim(mcmco)[2]-4)){
-      if (n==1){ strout = paste(toString(round(squant[n,],3)),round(smod[n],3),round(smean[n],3),round(slast[n],3),sep=",") }
-      else if (n>1){ strout = paste(strout,toString(round(squant[n,],3)),round(smod[n],3),round(smean[n],3),round(slast[n],3),sep=",") }
+    if (  (is.na(filsg) & !is.na(filsd))  |  (!is.na(filsg) & is.na(filsd))  ){
+      print("error 2")
+      error_found = 1
     }
     if ( !is.na(filsg) ){
       if ( gtreel$nodes[filsg,1]!=n ){
