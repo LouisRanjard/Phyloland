@@ -507,6 +507,7 @@ create_landscape <- function(space_size,space_dim,max_dist=10,usedegree=0){
         P2=destPoint(P1,angle,max_dist*1000)
         long2=P2[1]
         lat2=P2[2]
+
         if(space_size>2)
         {
           if(lat1<=lat2){
@@ -523,16 +524,10 @@ create_landscape <- function(space_size,space_dim,max_dist=10,usedegree=0){
           Lat=c()
           Long=c()
         }
-        Lat=union(Lat,c(lat1))
-        Lat=union(Lat,c(lat2))
-        Long=union(Long,c(long1))
-        Long=union(Long,c(long2))
+        Lat=c(Lat,lat1,lat2)
+        Long=c(Long,long1,long2)
         return(rbind(Lat,Long))
      }
-      #append(Lat, lat1,after = space_size-1)
-      #append(Lat,lat2,after = space_size)
-      #append(Long, long1,after =  space_size-1)
-      #append(Long, long2,after =  space_size)
     }
   }
 }
@@ -1294,17 +1289,18 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
 		history = sim_mig(space,sigma,lambda,tau,0,numtip)[[1]] # limit to numtip leaves
 		print(paste('number of simulated migration events:',nrow(history)-1))
 		treeloc = mig2treel(history)
-		gtreel$nodes = treeloc[[1]]
+		gtreel = treeloc[[1]]
+		#ici on a les nodes mais pas order
 		locations_sampled = treeloc[[3]]
-
-    # sort and reorder gtreel for consistent format
-		reordered = sort_gtreel(gtreel$nodes, locations_sampled)
-
-		gtreel$nodes = reordered[[1]]
-
-		locations_sampled = reordered[[2]]
-
+   # sort and reorder gtreel for consistent format
+		reordered = sort_gtreel(gtreel, locations_sampled)
+	 #ici on perd notre nodes
+		gtreel = reordered[[1]]
+		locations_sampled = gtreel$nodes.label
 	}
+	
+	#print("gtreel")
+	#print(gtreel)
 	return(list(locations_sampled,history_proba_val,gtreel))
 }
 
@@ -1608,7 +1604,7 @@ geneal_to_treel <- function(coal_history){
 }
 
 ## simulate migration in space and return corresponding genealogy
-sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_simul=.4,lambda_simul=.5,tau_simul=1,use_molseq=0,space_dim=1,model=1){
+sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_simul=.4,lambda_simul=.5,tau_simul=1,use_molseq=0,space_dim=1,model=1,usedegree=0){
 	if (model!=4){ ## create tree first
 		## get a tree using a Yule process then simulate a genealogy
 		#tree_treeshape = rtreeshape(n=1, tip.number=N, model="yule")[[1]] # tree format "treeshape" (package:apTreeshape)
@@ -1657,8 +1653,8 @@ sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_sim
 		## generate molecular sequences on the genealogy
 		write.tree(lconverttree(gtreel,locations_sampled),file="./test1.tree")
 		#system(paste("seq-gen -on -mHKY -t3.0 -f0.3,0.2,0.2,0.3 -l40 < ./test1.tree > ./test1.dat",sep="")) ## HKY
-		system(paste("seq-gen -op -mHKY -l50 < ./test1.tree > ./test1.dat",sep="")) ## JC69
-		sim_seq = read.dna("./test1.dat")
+		#system(paste("seq-gen -op -mHKY -l50 < ./test1.tree > ./test1.dat",sep="")) ## JC69
+		#sim_seq = read.dna("./test1.dat")
 		# ## need to convert sequences from PHYLIP to FASTA format (using {ape})
 		#phylip_2_fasta("test1.dat")
 		# ## multiple align sequences
@@ -1698,7 +1694,7 @@ sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_sim
 # Nstep_step: how many draws of internal locations at each iteration
 # Nstep_step: how many draws of genealogy at each iteration
 # est_sigma: do not estimate sigma (0), use a uniform prior (1) or a dual prior (2)
-mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=c(1,1), est_lambda=1, est_tau=1, sample_geneal=0, sample_loc=0, 
+mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigma=c(1,1), est_lambda=1, est_tau=1, sample_geneal=0, sample_loc=0, 
                          plot_phylo=0, plot_MCMC=0, save_MCMC=0,
                          Nstep=1000, freq=1, Nstep_sigma=1, Nstep_lambda=1, Nstep_loc=1, Nstep_genealogy=1, Nstep_tau=1, pchange=0, ess_lim=100,
                          model=4, show_loc=0, filena_loc=NA, file_tracer=NA, file_tree=NA, dmethod="distkm"){
@@ -1727,10 +1723,15 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
   mat_Dists = space_dist(space, dmethod)
   
   if (sum(est_sigma)>0) sigma = rep(0,Ndim)
-  sig_lower_limit = 0 # note that when new value of sigma proposed is very low then likelihood is -Inf then exp(metropolis+hastings)==0 then new value is rejected
   print("Compute sigma upper limit(s)...")
-  sig_upper_limit = unlist(lapply(lapply(mat_Dists,max),sigma_upperlim)) # limit on prior for sampling sigma during mcmc
-  sigma_threshold = unlist(lapply(lapply(mat_Dists,mean),sigma_upperlim)) # threshold below which limited dispersal is inferred
+  sigma_limit1=sigma_limit_V2(dmin = min(mat_Dists[[1]][mat_Dists[[1]]>0]),dmax = max(mat_Dists[[1]]),probalow = 0.1,probahigh = 0.9)
+  sigma_limit2=sigma_limit_V2(dmin = min(mat_Dists[[2]][mat_Dists[[2]]>0]),dmax = max(mat_Dists[[2]]),probalow = 0.1,probahigh = 0.9)
+  sig_lower_limit=c(sigma_limit1[1],sigma_limit2[1])
+  sig_upper_limit=c(sigma_limit1[2],sigma_limit2[2])
+  
+  #sig_lower_limit = 0 # note that when new value of sigma proposed is very low then likelihood is -Inf then exp(metropolis+hastings)==0 then new value is rejected
+  #sig_upper_limit = unlist(lapply(lapply(mat_Dists,max),sigma_limit,tries=1e3)) # limit on prior for sampling sigma during mcmc
+  sigma_threshold = unlist(lapply(lapply(mat_Dists,mean),sigma_limit)) # threshold below which limited dispersal is inferred
   if (sum(est_sigma==2)>0){
     sig_lam = rep(0,Ndim)
     sig_toplim = rep(0,Ndim)
@@ -1777,8 +1778,13 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
     }else{
       tree_phylo = lconverttree(gtreel)
     }
-    real_loc = locations_sim[,1]
-    locations = internal_loc(gtreel,locations_sim[,1]) ## get list of possible locations for all nodes, Uniform
+    #replace real_loc by locations_sim (dans la fonction show_locat jesais pas d'ou vien le real_loc)
+    dim_location=dim(locations_sim)[2]
+    if(!is.null(dim_location))
+    {
+      locations_sim = locations_sim[,1]
+    }
+    locations = internal_loc(gtreel,locations_sim) ## get list of possible locations for all nodes, Uniform
     ## draw migrations uniformly
     locations_sampled = sim_history(gtreel,space,sig_upper_limit,1,tau_upper_limit/2,locations,0,model,1)[[1]]
     check_treel(gtreel,locations_sampled)
@@ -1794,7 +1800,7 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 		locations_sampled = locations_sim
 		tree_phylo = lconverttree(gtreel)
 	}
-  
+
 	### acceptance rates computed on 100 values, first line values, second line acceptance
 	acc_lambda = vector('numeric',100)
 	id_acc_lambda = 1
@@ -1821,22 +1827,23 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 	tune_tp_tau = 1 ## need to tune tuning parameter for tau?
 	tuningp_sigma = rep(0,Ndim) + init_tuningp
 	tune_tp_sigma = rep(1,Ndim) ## need to tune tuning parameter for sigma?
-
+	
 	freq_n = 1
 	freq_n1 = 1
 	output_val = matrix(nrow=Nstep/freq,ncol=(4+Ndim))
-	output_loc = matrix(nrow=Nstep/freq,ncol=(length(gtreel[,1])+1))
+	output_loc = matrix(nrow=Nstep/freq,ncol=(length(gtreel$nodes[,1])+1))
 
 	## compute likelihood of this particular phylogeny
 	likeli_curr = sim_history(gtreel,space,sigma,lambda,tau,locations_sampled[,1],1,model)[[2]]
   likeli_new = likeli_curr # initialisation
-
   # debug
+  
   rate_acc = c(0,0,0)
   
 	for (n in 1:Nstep) {
     
 		## sample internal location and/or genealogy
+
 		if (length(sample_geneal[[1]])>1){
 			for (n2 in 1:Nstep_genealogy) {
 				ind = sample(1:length(sample_geneal),1)
@@ -1880,8 +1887,9 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
         }
       }
     }
-		
+	  
     ## sample sigma (one per space dimension)
+	  
 		for (nd in 1:Ndim){
 		  if (est_sigma[nd]>0){
 			  for (n2 in 1:Nstep_sigma) {
@@ -1950,7 +1958,7 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 			  if (nd==2) rate_acc = rbind(rate_acc,c(sigma_new[nd],accepted,likeli_new)) # debug
 			}
 		}
-
+    
 		## sample lambda
 		if (est_lambda==1){
 			for (n2 in 1:Nstep_lambda) {
@@ -1996,7 +2004,7 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 				}
 			}
 		}
-
+	  
 		## sample tau
 		if (est_tau==1){
 			for (n2 in 1:Nstep_tau) {
@@ -2042,7 +2050,7 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 				}
 			}
 		}
-
+	  
 		## record value
 		if (n==(freq_n*freq)) {
 		  ## save tree, reorder before so that internal nodes are from oldest to most recent
@@ -2050,17 +2058,20 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 		  locations_ordered = ordered[[2]]
 		  tree_phylo_ordered = reorder_treep(tree_phylo)
 			trees_sampled[[n/freq]] <- tree_phylo_ordered
-
+			
 			test <- test_tree(tree_phylo_ordered, list_trees, list_nb, list_ind, n ,freq)
 			list_trees = test[[1]]
 			list_nb = test[[2]]
 			list_ind = test[[3]]
+			
 			if (!is.na(file_tree)){
 			  print(tree_phylo_ordered$edge)
-			  x11();plot(tree_phylo_ordered)
+			  #iciwesh
+			  #x11();plot(tree_phylo_ordered)
 			  print(file_tree)
 			  write(write.tree(tree_phylo_ordered,file=""), file = file_tree, append = TRUE)
 			}
+			
 			freq_n = freq_n + 1
 			output_val[n/freq,1] = n
 
@@ -2068,10 +2079,12 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 			for (idn in 1:Ndim){
 				output_val[n/freq,(idn+1)] = sigma[idn]
 			}
+
 			output_val[n/freq,(idn+2)] = lambda
 			output_val[n/freq,(idn+3)] = tau
 			output_val[n/freq,(idn+4)] = likeli_curr
 			stringo = sprintf("%i    ",output_val[n/freq,1])
+
 			for (idn in 2:length(output_val[1,])){
 				stringo = paste(stringo,sprintf("%.4f    ",output_val[n/freq,idn]))
 			}
@@ -2079,10 +2092,11 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 
 			## save locations
 			output_loc[n/freq,1] = n
-			output_loc[n/freq,2:(length(gtreel[,1])+1)] = locations_ordered
+			output_loc[n/freq,2:(length(gtreel$nodes[,1])+1)] = locations_ordered
 			if (!is.na(filena_loc)){
 			  write.table(t(c(n,locations_ordered)), col.names = FALSE, row.names = FALSE, file = filena_loc, sep = "\t", eol = "\n", append = TRUE)
 			}
+
 			if (!is.na(file_tracer)){
 			  write.table(t(output_val[n/freq,]), file = file_tracer, row.names = FALSE, col.names = FALSE, sep = "\t", append = TRUE)
 			}
@@ -2118,8 +2132,9 @@ mcmc_phyloland<-function(space, gtreel, simul_values, treelikelihood, est_sigma=
 			}
 		}
 	}
+
 	if (sample_loc==1 && show_loc==1){
-		return(list(output_val,histloc,histdraw,tnumi,real_loc,locations_sampled,space))
+		return(list(output_val,histloc,histdraw,tnumi,locations_sim,locations_sampled,space))
 	}else{
 		return(list(output_val, output_loc, trees_sampled, list_trees, list_nb, list_ind[1:length(list_trees)], rate_acc, sigma_threshold))
 	}
@@ -3049,6 +3064,7 @@ sigma_upperlim <- function(dmax,aire=.95,n_itera=100,sigma_min=1e-3,sigma_max=1e
   for (i in 1:n_itera){
     testsigma = seq(sigma_min,sigma_max,length.out=tries)
     proba1 = matrix(0,nrow=length(testsigma),ncol=2)
+    #      proba1[i,2]=dnorm(dmin,0,testsigma[i])/dnorm(0,0,testsigma[i])
     for(i in 1:length(testsigma)){
       proba1[i,1] = testsigma[i]
       #norma_factor = pnorm(0,0,sqrt(testsigma[i]))
@@ -3241,7 +3257,7 @@ saturation_height <- function(history,space){
 # reOrder tree format louis, so that oldest internal node first after the root
 # tips must appear first, then root and finally internal nodes (case when gtreel is output by converttree())
 reorder_treel <- function(gtreel,locations=0){
-  gtreelO <- list( nodes=matrix(0,nrow=nrow(gtreel$nodes),ncol=ncol(gtreel$nodes)), nodes.label=seq(1,length(gtreel$nodes.label)) )
+  gtreelO <- list( nodes=matrix(0,nrow=nrow(gtreel$nodes),ncol=ncol(gtreel$nodes)), nodes.label=rep(NA,length(gtreel$nodes.label)) )
   locationsO = locations*0 # intialise to 0
   ntips = ( length(gtreel$nodes[,1])+1 )/2
   nnodes = ntips-1
@@ -3258,6 +3274,7 @@ reorder_treel <- function(gtreel,locations=0){
   nh = cbind(node_id,c(node_id[1:ntips],nrow(gtreel$nodes):(rootn+1),rootn))
   locationsO[nh[,2]] = locations[nh[,1]]
   for (n in (ntips+1):nrow(gtreel$nodes)) {
+    if (n==(ntips+1)) gtreelO$nodes.label[n] = gtreel$nodes.label[rootn]
     if(gtreel$nodes[nh[n,1],2]<=ntips){
       filsg = gtreel$nodes[nh[n,1],2]
     }else{
@@ -3416,14 +3433,14 @@ sort_gtreel <- function(gtreel, locations){
     gtreelO$nodes[filsd,4] = gtreel$nodes[mapintnode[which(mapintnode[,2]==filsd),1],4]
   }
   gtreelO$nodes[ntips+1,2:3] = c(filsg,filsd)
-
   locationsO = locations[c(idtips,rootn,intnode_ordered),]
-  
+  gtreelO$nodes.label = locationsO[,1]
   # reorder so that internal nodes are ordered form oldest to youngest
+  # reordered = reorder_treel(gtreelO, locationsO)
   reordered = reorder_treel(gtreelO, locationsO)
   gtreelO = reordered[[1]]
   locationsO = reordered[[2]]
-  
+
 #print(gtreelO)
   check_treel(gtreelO,locationsO)
   return(list(gtreelO,locationsO))
@@ -3605,4 +3622,105 @@ verif_arg <- function(x, type = NA, len = NA, name_function, positive = 0){
 	}
 }
 
+#Function from the script with the KM modif
+plot_sigma_limit <- function(sigma_min,sigma_max,dis_min,dis_max){
+  xdim=seq(0,dis_max*1.1,length.out=100)
+  plot(xdim,dnorm(xdim,0,sqrt(sigma_min))/(dnorm(0,0,sqrt(sigma_min))),type="l",lwd=2,col="red",xlab="distance",ylab="probability density function")
+  points(xdim,dnorm(xdim,0,sqrt(sigma_max))/(dnorm(0,0,sqrt(sigma_max))),type="l",lwd=2,col="blue")
+  #text(c(dis_min,dis_min), c(dnorm(dis_min*1.1,0,.3)/(pnorm(1,0,.3)-pnorm(0,0,.3)),dnorm(dis_min*1.1,0,sig_lower_limit)/(pnorm(1,0,sig_lower_limit)-pnorm(0,0,sig_lower_limit))),
+  #     labels = c("0.3",sig_lower_limit))
+  abline(v=dis_min)
+  abline(v=dis_max)
+  abline(h = 0.1)
+  abline(h = 0.9)
+}
+
+#This function return the minimum value of sigma  wich allow a probability of migration >= at the "proba" parameter
+sigma_limit <- function(dmin=20,dmax=500,probalow=.01,probahigh=.99,n_itera=100,sigma_min=0,sigma_max=1000,tries=10000,plotting=0){
+  for (i in 1:n_itera){
+    testsigma = seq(sigma_min,sigma_max,length.out=tries)
+    proba1 = matrix(0,nrow=length(testsigma),ncol=2)
+    for(i in 1:length(testsigma)){
+      proba1[i,1] = testsigma[i]
+      proba1[i,2]=dnorm(dmin,0,sqrt(testsigma[i]))/(dnorm(0,0,sqrt(testsigma[i]))) 
+    }
+  }
+  for (i in 2:tries) {
+    sig_lower_limit=proba1[i,1]
+    if(proba1[i,2]>=probalow){
+      break
+    }
+  }
+  for (i in 1:n_itera){
+    proba2 = matrix(0,nrow=length(testsigma),ncol=2)
+    testsigma2=seq(sig_lower_limit,1000000,length.out=tries)
+    for(i in 1:length(testsigma2)){
+      proba2[i,1] = testsigma2[i]
+      proba2[i,2]=dnorm(dmax,0,sqrt(testsigma2[i]))/(dnorm(0,0,sqrt(testsigma2[i])))
+    }
+  }
+  for (i in 2:tries) {
+    sig_upper_limit=proba2[i,1]
+    if(proba2[i,2]>0.9){
+      break
+    }
+  }
+  return(c(sig_lower_limit,sig_upper_limit))
+}
+
+sigma_limit_V2 <- function(dmin,dmax,probalow = 0.1,probahigh = 0.9){
+  start=0
+  Borne=10000000
+  testsigma=seq(start,Borne,length.out = 100)
+  testsigma2=seq(start,Borne,length.out = 100)
+  i=1
+  j=1
+  for (x in 1:100) {
+    while(i<=100)
+    {
+      proba=dnorm(dmax,0,sqrt(testsigma[i]))/(dnorm(0,0,sqrt(testsigma[i])))
+      if(proba>=probahigh){
+        sig_upper_limit=testsigma[i]
+        testsigma=seq(testsigma[i-1],testsigma[i],length.out = 100)
+        i=1
+        break
+      }
+      else{
+        i=i+1
+      }
+    }
+    while(j<=100)
+    {
+      proba2=dnorm(dmin,0,sqrt(testsigma2[j]))/(dnorm(0,0,sqrt(testsigma2[j])))
+      if(proba2>=probalow){
+        sig_lower_limit=testsigma2[j]
+        testsigma2=seq(testsigma2[j-1],testsigma2[j],length.out = 100)
+        j=1
+        break
+      }
+      else{
+        j=j+1
+      }
+    }
+  }
+  return(c(sig_lower_limit,sig_upper_limit))
+}
+
+plot_prior_posterior <- function(data,sig_lower_limit,sig_upper_limit){
+  for(i in 1:length(sig_lower_limit))
+  {
+    sigma1=data[,i+1]
+    # Get the density estimate
+    dens=density(sigma1)
+    # Plot y-values scaled by number of observations against x values
+    plot(dens$x,length(sigma1)*dens$y,type="l",xlab="Sigma Value",ylab="Density",xlim=c(sig_lower_limit[i]*500, sig_upper_limit[i]*.96))
+    title(main = paste("Prior & Posterior distribution for Sigma ", i))
+    abline(v=sig_lower_limit[i])
+    abline(v=sig_upper_limit[i])
+    library(sfsmisc)
+    aire=integrate.xy(dens$x,dens$y,a = sig_lower_limit[i],b = sig_upper_limit[i])
+    ley=aire*1000/(sig_upper_limit[i]-sig_lower_limit[i])
+    abline(h=ley)
+  }
+}
 
