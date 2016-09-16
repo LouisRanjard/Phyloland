@@ -110,14 +110,28 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 			//mat_distsl[i*length_destinations + j] = fabs(space[(*space_size+departures2[i]-1)] - space[(*space_size+destinations[j]-1)]);//-*-
   		//mat_distsL[i*length_destinations + j] = fabs(space[departures[i]-1] - space[destinations[j]-1]);                              // euclidean
 			//mat_distsl[i*length_destinations + j] = fabs(space[(*space_size+departures[i]-1)] - space[(*space_size+destinations[j]-1)]);  // euclidean
-    	mat_distsL[i*length_destinations + j] = distkm( space[departures[i]-1], space[destinations[j]-1], 
+    //recup la good valeur dans la mtrice 
+      mat_distsL[i*length_destinations + j] = distkm( space[departures[i]-1], space[destinations[j]-1], 
         (space[(*space_size+departures[i]-1)]+space[(*space_size+destinations[j]-1)])/2, (space[(*space_size+departures[i]-1)]+space[(*space_size+destinations[j]-1)])/2 );  // km
+			  //printf("space : %f",space)
+		//	printf("space[departures[i]-1] : %f", space[departures[i]-1]);
+		//	printf("space[destinations[j]-1] : %f", space[destinations[j]-1]);
+		//	printf("(space[(*space_size+departures[i]-1)]+space[(*space_size+destinations[j]-1)])/2 : %f", (space[(*space_size+departures[i]-1)]+space[(*space_size+destinations[j]-1)])/2);
+		//	printf("(space[(*space_size+departures[i]-1)]+space[(*space_size+destinations[j]-1)])/2 : %f", (space[(*space_size+departures[i]-1)]+space[(*space_size+destinations[j]-1)])/2);
+			
 			mat_distsl[i*length_destinations + j] = distkm( (space[departures[i]-1]+space[destinations[j]-1])/2, (space[departures[i]-1]+space[destinations[j]-1])/2, 
         space[(*space_size+departures[i]-1)], space[(*space_size+destinations[j]-1)] );  // km
+		//	printf("(space[departures[i]-1]+space[destinations[j]-1])/2 : %f", (space[departures[i]-1]+space[destinations[j]-1])/2);
+		//	printf("(space[departures[i]-1]+space[destinations[j]-1])/2 : %f", (space[departures[i]-1]+space[destinations[j]-1])/2);
+		//	printf("space[(*space_size+departures[i]-1)] : %f", space[(*space_size+departures[i]-1)];
+		//	printf("space[(*space_size+destinations[j]-1)] : %f", space[(*space_size+destinations[j]-1)];
 		}
 	}
+  
+  
 
-	 /*printf("\n\nmat_distsL\n");
+	 /* 
+	 printf("\n\nmat_distsL\n");
 	 for (i = 0; i < dim_mat_dists; i++) {
 	 printf("%lf , ",mat_distsL[i]);
 	 }
@@ -144,13 +158,13 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 		}
 	}
 
-	 /*
+	 /* 
    if (sum_occupied==1){
      printf("\n\nF_{i,j}\n");
   	 for (i = 0; i < dim_mat_dists ; i++) {
   	   printf("%e , ",densitymat[i]);
   	 }
-   } */
+   }*/
 	
 	// ##### 5 ##### //
   
@@ -446,11 +460,37 @@ double dexp_proba(double x, double lambda_exp)
 
 double distkm(double lat1, double lat2, double long1, double long2)
 {
-  double lat1r, lat2r, long1r, long2r, d ;
+  double lat1r, lat2r, long1r, long2r, d, R,x,y;
   lat1r = (lat1/180) * M_PI ;
   lat2r = (lat2/180) * M_PI ;
   long1r = (long1/180) * M_PI ;
   long2r = (long2/180) * M_PI ;
-  d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)*cos(long2r-long1r) ) * 6378.137 ;
+  //d=sqrt(((long1-long2)*(long1-long2)) + ((lat1-lat2)*(lat1-lat2)));
+  R=6371;
+  x=(long2r-long1r)*cos(0.5*(lat2r+lat1r));
+  y=lat2r-lat1r;
+  d=R*sqrt(x*x+y*y);
+  if(d<=100)
+  {
+    return d;
+  }
+  else
+  {
+    if(lat1==lat2 && long1==long2 ){
+      return 0;
+    }
+ 
+    if((long2r != long1r) && (fabs(long2r-long1r)<0.000001)){
+      d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r))*6378.137;
+      //d=sqrt(((long1-long2)*(long1-long2)) + ((lat1-lat2)*(lat1-lat2)));
+    } else{
+      d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)*cos(long2r-long1r)) * 6378.137 ;
+      //  d=sqrt(((long1-long2)*(long1-long2)) + ((lat1-lat2)*(lat1-lat2)));
+    }
+    //printf("sin(lat1r):%f sin(lat2r)%f cos(lat1r)%f cos(lat2r):%f produit:%f acos:%f\n",sin(lat1r),sin(lat2r),cos(lat1r),cos(lat2r),(sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)), acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)));
+    //printf("lat1:%f lat2%f long1:%f long2:%f\n",lat1,lat2,long1,long2);
+    //printf("lat1r:%f lat2r:%f long1r:%f long2r:%f\n",lat1r,lat2r,long1r,long2r);
+    // printf("Dist : %f\n\n",d);
+  }
   return d;
 }
