@@ -59,9 +59,9 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
   
 	long sum_occupied = 0;
 	for (i = 0 ; i < *space_size ; i++) {
-		if (occupied[i]>0){
-      sum_occupied += 1;
-    }
+			if (occupied[i]>0){
+	      sum_occupied += 1;
+	    }
 	}
 	
 	length_departures = sum_occupied ;
@@ -77,11 +77,11 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	
 	// ##### 2 ##### //
 	length_destinations = *space_size ; 
-  //length_departures2 = *space_size ;//-*-
+  	//length_departures2 = *space_size ;//-*-
 	destinations = malloc(*space_size * sizeof(long));
-  //departures2 = malloc(*space_size * sizeof(long));//-*-
+  	//departures2 = malloc(*space_size * sizeof(long));//-*-
 	for (i = 0 ; i < *space_size ; i++) {
-  	destinations[i] = (i+1);
+  		destinations[i] = (i+1);
 		//departures2[i] = (i+1);//-*-
 	}
   
@@ -100,17 +100,17 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	// Distance matrix //
 	double *mat_distsL = NULL, *mat_distsl = NULL;
 	long dim_mat_dists = length_departures * length_destinations;
-  //long dim_mat_dists = length_departures2 * length_destinations;//-*-
+  	//long dim_mat_dists = length_departures2 * length_destinations;//-*-
 	mat_distsL = malloc(dim_mat_dists * sizeof(double));
 	mat_distsl = malloc(dim_mat_dists * sizeof(double));
-  for (i = 0 ; i < length_departures ; i++) {
+  	for (i = 0 ; i < length_departures ; i++) {
 	//for (i = 0 ; i < length_departures2 ; i++) {//-*-
 		for (j = 0; j < length_destinations ; j++) {
 			//mat_distsL[i*length_destinations + j] = fabs(space[departures2[i]-1] - space[destinations[j]-1]);//-*-
 			//mat_distsl[i*length_destinations + j] = fabs(space[(*space_size+departures2[i]-1)] - space[(*space_size+destinations[j]-1)]);//-*-
-  		//mat_distsL[i*length_destinations + j] = fabs(space[departures[i]-1] - space[destinations[j]-1]);                              // euclidean
+  			//mat_distsL[i*length_destinations + j] = fabs(space[departures[i]-1] - space[destinations[j]-1]);                              // euclidean
 			//mat_distsl[i*length_destinations + j] = fabs(space[(*space_size+departures[i]-1)] - space[(*space_size+destinations[j]-1)]);  // euclidean
-    	mat_distsL[i*length_destinations + j] = distkm( space[departures[i]-1], space[destinations[j]-1], 
+    			mat_distsL[i*length_destinations + j] = distkm( space[departures[i]-1], space[destinations[j]-1], 
         (space[(*space_size+departures[i]-1)]+space[(*space_size+destinations[j]-1)])/2, (space[(*space_size+departures[i]-1)]+space[(*space_size+destinations[j]-1)])/2 );  // km
 			mat_distsl[i*length_destinations + j] = distkm( (space[departures[i]-1]+space[destinations[j]-1])/2, (space[departures[i]-1]+space[destinations[j]-1])/2, 
         space[(*space_size+departures[i]-1)], space[(*space_size+destinations[j]-1)] );  // km
@@ -129,38 +129,38 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	// ##### 4 ##### //
 	// Density matrix //
 	double mean = 0, sdL, sdl ;
-  sdL = sqrt(sigma[0]);
-  sdl = sqrt(sigma[1]);
+  	sdL = sqrt(sigma[0]);
+  	sdl = sqrt(sigma[1]);
 	int b_log = 1;
 	double *densitymat= NULL;
 	densitymat = malloc(dim_mat_dists * sizeof(double));
 	for (i = 0; i < length_destinations; i++) {
-  	for (j = 0; j < length_departures; j++) {
-		//for (j = 0; j < length_departures2; j++) {//-*-
-  		//densitymat[i + (length_destinations * j)] = ((dnorm(mat_distsL[i + (length_destinations * j)] , mean , sdL , b_log)) + (dnorm(mat_distsl[i + (length_destinations * j)] , mean , sdl , b_log))) - ( log((pnorm(1, mean, sdL,1,0)- pnorm(0, mean, sdL,1,0))) + log((pnorm(1,mean,sdl,1,0) - pnorm(0,mean,sdl,1,0)))) ;
+  		for (j = 0; j < length_departures; j++) {
+			//for (j = 0; j < length_departures2; j++) {//-*-
+  			//densitymat[i + (length_destinations * j)] = ((dnorm(mat_distsL[i + (length_destinations * j)] , mean , sdL , b_log)) + (dnorm(mat_distsl[i + (length_destinations * j)] , mean , sdl , b_log))) - ( log((pnorm(1, mean, sdL,1,0)- pnorm(0, mean, sdL,1,0))) + log((pnorm(1,mean,sdl,1,0) - pnorm(0,mean,sdl,1,0)))) ;
 			densitymat[i + (length_destinations * j)] = exp( (dnorm(mat_distsL[i + (length_destinations * j)] , mean , sdL , b_log) - dnorm(0 , mean , sdL , b_log)) +
-                                                       (dnorm(mat_distsl[i + (length_destinations * j)] , mean , sdl , b_log) - dnorm(0 , mean , sdl , b_log)) )
-                                                  / length_destinations ;
+                                            		(dnorm(mat_distsl[i + (length_destinations * j)] , mean , sdl , b_log) - dnorm(0 , mean , sdl , b_log)) )
+                                                 	/ length_destinations ;
 		}
 	}
 
 	 /*
-   if (sum_occupied==1){
-     printf("\n\nF_{i,j}\n");
-  	 for (i = 0; i < dim_mat_dists ; i++) {
-  	   printf("%e , ",densitymat[i]);
-  	 }
-   } */
+	if (sum_occupied==1){
+	printf("\n\nF_{i,j}\n");
+	 for (i = 0; i < dim_mat_dists ; i++) {
+	   printf("%e , ",densitymat[i]);
+	 }
+	} */
 	
 	// ##### 5 ##### //
   
-  /* printf("\n\noccupied\n");
+  	/* printf("\n\noccupied\n");
 	for ( i = 0; i < (*space_size) ; i++) {
 		printf("%lf \t",(double)occupied[i]);
 	}*/
   
-  //FILE *fp;
-  //if (sum_occupied==1){fp = fopen("results.dat", "w");}
+  	//FILE *fp;
+  	//if (sum_occupied==1){fp = fopen("results.dat", "w");}
 	// Lambda //
 	double *L = NULL;
 	L = malloc(length_destinations * sizeof(double));
@@ -175,36 +175,36 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	/*printf("\n\nL\n");
 	for (i = 0; i < length_destinations ; i++) {
 	  printf("%lf , ",L[i]);
-    //printf("%d , ",occupied[i]);
+    	//printf("%d , ",occupied[i]);
 	} */
 	
 	// ##### 6 ##### //
 	// R //
-  double *R= NULL;
-  R = malloc(dim_mat_dists * sizeof(double));
-  double Rs=0;
-  for ( i = 0 ; i < length_departures ; i++ ) {
+	double *R= NULL;
+	R = malloc(dim_mat_dists * sizeof(double));
+	double Rs=0;
+	for ( i = 0 ; i < length_departures ; i++ ) {
 	//for ( i = 0 ; i < length_departures2 ; i++ ) {//-*-
 		for ( j =0 ; j < length_destinations ; j++) {
 			densitymat[i*length_destinations+j] = densitymat[i*length_destinations+j] * L[j];
-      R[i*length_destinations+j] = densitymat[i*length_destinations+j] * *tau;
-      //if (occupied[destinations[(j)]-1]>=1) Rs += (R[i*length_destinations+j] * (double)occupied[destinations[(j)]-1]);
-      if (occupied[departures[(i)]-1]>=1) Rs += (R[i*length_destinations+j] * (double)occupied[departures[(i)]-1]);
-      //printf("%lf ",R[i*length_destinations+j]);
-      //if (sum_occupied==1){fprintf(fp,"%d-%d, %lf, %ld, %d\n",i,j,L[j],destinations[(j)],occupied[destinations[(j)]-1]);}
-		}
-    //printf("\n");
+			R[i*length_destinations+j] = densitymat[i*length_destinations+j] * *tau;
+			//if (occupied[destinations[(j)]-1]>=1) Rs += (R[i*length_destinations+j] * (double)occupied[destinations[(j)]-1]);
+			if (occupied[departures[(i)]-1]>=1) Rs += (R[i*length_destinations+j] * (double)occupied[departures[(i)]-1]);
+			//printf("%lf ",R[i*length_destinations+j]);
+			//if (sum_occupied==1){fprintf(fp,"%d-%d, %lf, %ld, %d\n",i,j,L[j],destinations[(j)],occupied[destinations[(j)]-1]);}
+			}
+			//printf("\n");
 	}
-  //if (sum_occupied==1){fclose(fp);}
+  	//if (sum_occupied==1){fclose(fp);}
 
 
-   /*
-   if (sum_occupied==1){
-     printf("\n\nR_{i,j}\n");
-  	 for (i = 0; i < dim_mat_dists ; i++) {
-  	   printf("%e , ",R[i]);
-  	 }
-   } */
+	/*
+	if (sum_occupied==1){
+	printf("\n\nR_{i,j}\n");
+	 for (i = 0; i < dim_mat_dists ; i++) {
+	   printf("%e , ",R[i]);
+	 }
+	} */
    
 	 /*printf("\n\ndensitymat6\n");
 	 for (i = 0; i < dim_mat_dists ; i++) {
@@ -212,7 +212,7 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	 } */
 	
 	// ##### 7 ##### //
-  /*double sumd=0;
+  	/*double sumd=0;
 	for (i = 0 ; i < dim_mat_dists ; i++) {
 		if (IsFiniteNumber(densitymat[i])==0) {
 			densitymat[i]=0;
@@ -242,7 +242,7 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
    	
 	double RowSums = 0;
 	double *p = NULL;
-  p = malloc(length_departures*sizeof(double));
+  	p = malloc(length_departures*sizeof(double));
 	for ( i =0 ; i < length_departures ; i++ ) {
 		RowSums = 0;
 		for ( j = 0 ; j < length_destinations ; j++) {
@@ -255,12 +255,12 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	printf("%lf,",exp_param[i]);
 	} */
 	
-  /*printf("\n\nsum_exp_param\n");
+  	/*printf("\n\nsum_exp_param\n");
 	printf("%lf,",sum_exp_param); */
 	
 	double proba_event = 0;
 	double wait_time = 0 ;
-  int lstart = 0 , lgoto = 0 ;
+  	int lstart = 0 , lgoto = 0 ;
 	
 	// ##### 18 ##### //
 	if ( *length_mig > 1) { // find the migration event: from mig[1] to mig[2] and return its probability
@@ -281,15 +281,15 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 			}
 		}
 		// ##### 19 ##### //
-    if (sum_occupied==1){ //root
-      double sum_row=0;
-      for ( i = 0 ; i < length_destinations ; i++ ) {
-        sum_row += R[(length_destinations*lstart)+i];
-      }
-		  proba_event = R[(length_destinations*(long)(lstart))+(long)(lgoto)] / sum_row;
-    }else{
-      proba_event = R[(length_destinations*(long)(lstart))+(long)(lgoto)] * exp(-Rs*mig[2]);
-    }
+		if (sum_occupied==1){ //root
+		double sum_row=0;
+		for ( i = 0 ; i < length_destinations ; i++ ) {
+		sum_row += R[(length_destinations*lstart)+i];
+		}
+			  proba_event = R[(length_destinations*(long)(lstart))+(long)(lgoto)] / sum_row;
+		}else{
+		proba_event = R[(length_destinations*(long)(lstart))+(long)(lgoto)] * exp(-Rs*mig[2]);
+		}
 		wait_time = 0;
 		/*printf("\n\ndexp_proba\n");
   	printf("%lf",dexp_proba(mig[2],sum_exp_param)); */
@@ -301,10 +301,10 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
     //for (i = 0; i < dim_mat_dists ; i++) {
     //  sum_densitymat += densitymat[i];
 	  //}
-    wait_time = rexp_proba(Rs);
+   		 wait_time = rexp_proba(Rs);
 		/*printf("\n\nwait_time\n");
 		printf("%lf",wait_time);*/
-    double sum_p = 0;
+    	double sum_p = 0;
   	for ( i = 0 ; i < length_departures ; i++) {
   		sum_p += p[i];
   	}
@@ -395,7 +395,7 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	free(densitymat);
 	free(L);
 	free(R);
-  free(p);
+  	free(p);
 	
 	return;
 	
