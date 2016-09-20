@@ -36,6 +36,9 @@ PLD_interface <- function(fileTREES, fileDATA, num_step=100000, freq=100, burnin
   trees_phylo = read.nexus(fileTREES)
   if (class(trees_phylo) == "phylo"){
     sample_geneal = c(trees_phylo)
+    if (sum(trees_phylo$edge.length<0)>0) {
+      stop('[Phyloland:PLD_interface] non-clock-like phylogenetic tree (negative branch length)')
+    }
     #gtreelikelihood = 1
   }else{
     sample_geneal = trees_phylo[(burnin+1):length(trees_phylo)]
