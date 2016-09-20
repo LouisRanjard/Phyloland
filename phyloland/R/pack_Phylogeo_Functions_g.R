@@ -3331,6 +3331,7 @@ showlocat <- function(sampledloc,gtreel,locations_sim,space,plotting=0){
 		plotree(gtreel,locations_sim[,1])
 		x11()
 	}
+  # real_loc=????? ***BUG***
 	gnode_height = internal_node_height(gtreel)
 	if (dim(space)[1]==1) {## work in 1D
 		sort_space_id = sort(space,decreasing=TRUE,index.return=TRUE)$ix
