@@ -34,13 +34,13 @@ PLD_interface <- function(fileTREES, fileDATA, num_step=100000, freq=100, burnin
   
   # read trees phylo
   trees_phylo = read.nexus(fileTREES)
-  if (class(trees_phylo) == "phylo"){
+  if (is(trees_phylo,"phylo")){
     sample_geneal = c(trees_phylo)
     if (sum(trees_phylo$edge.length<0)>0) {
       stop('[Phyloland:PLD_interface] non-clock-like phylogenetic tree (negative branch length)')
     }
     #gtreelikelihood = 1
-  }else{
+  }else if (is(trees_phylo,"multiPhylo")){
     sample_geneal = trees_phylo[(burnin+1):length(trees_phylo)]
     #trees_par = readLines(fileTREES)[which(regexpr("STATE",readLines(fileTREES)) != -1)]
     #pattern = paste(pattern_trees_likelihood,"=",sep = "")
@@ -1568,9 +1568,9 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
     tau = tau_simul
   }
   
-  if (sample_loc==1 | is(trees_phylo,"multiPhylo")){ ## sample locations of all internal nodes, if sample_loc==0 the true internal nodes locations are used
+  if (sample_loc==1 | is(sample_geneal,"multiPhylo")){ ## sample locations of all internal nodes, if sample_loc==0 the true internal nodes locations are used
     browser()
-    if (is(trees_phylo,"multiPhylo")){
+    if (is(sample_geneal,"multiPhylo")){
       ind = sample(1:length(sample_geneal),1)
       tree_phylo = sample_geneal[[ind]]
       gtreel = converttree(tree_phylo)
@@ -1644,7 +1644,7 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
     
     ## sample internal location and/or genealogy
     
-    if (is(trees_phylo,"multiPhylo")){
+    if (is(sample_geneal,"multiPhylo")){
       for (n2 in 1:Nstep_genealogy) {
         ind = sample(1:length(sample_geneal),1)
         tree_phylo_new = sample_geneal[[ind]]
@@ -1865,9 +1865,9 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
       list_ind = test[[3]]
       
       if (!is.na(file_tree)){
-        print(tree_phylo_ordered$edge)
+        #print(tree_phylo_ordered$edge)
         #x11();plot(tree_phylo_ordered)
-        print(file_tree)
+        #print(file_tree)
         write(write.tree(tree_phylo_ordered,file=""), file = file_tree, append = TRUE)
       }
       
@@ -2323,7 +2323,7 @@ output_function = function(stat_res,space_size,maxdist,ntip,sigma_simul,lambda_s
   file_tracer = paste("tracer1_",id_filena,".log",sep="")
   file_tree = paste("file_tree1_",id_filena,".nwk",sep="")
   
-  cat(c(space_size,ntip,round(sigma_simul,3),round(lambda_simul,3),round(tau_simul,3),0,est_sigma,est_lambda,est_tau,as.numeric(is(trees_phylo,"multiPhylo")),
+  cat(c(space_size,ntip,round(sigma_simul,3),round(lambda_simul,3),round(tau_simul,3),0,est_sigma,est_lambda,est_tau,as.numeric(is(sample_geneal,"multiPhylo")),
         sample_loc,Nstep,freq,Nstep_sigma=1,Nstep_lambda=1,Nstep_tau=1,Nstep_loc=1,pchange=0,ess_lim,unlist(stat_res),round(space[,gtreel$nodes.label[which(is.na(gtreel$nodes[,1]))]],3),
         Nstep_genealogy=1,round(sig_upper_limit,3),round(sig_lower_limit,3),round(maxd,3),round(mean_matDist1,3),round(mean_matDist2,3),'\n'),file=filena,sep=",",append=TRUE)
   
