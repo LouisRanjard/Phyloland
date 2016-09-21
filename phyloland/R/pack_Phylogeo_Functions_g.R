@@ -1487,8 +1487,8 @@ lsos <- function(..., n=10) {
 # freq: how often the estimated values are recorded
 # Nstep_sigma: how many draws of sigma values at each iteration
 # Nstep_lambda: how many draws of lambda at each iteration
-# Nstep_step: how many draws of internal locations at each iteration
-# Nstep_step: how many draws of genealogy at each iteration
+# Nstep_loc: how many draws of internal locations at each iteration
+# Nstep_genealogy: how many draws of genealogy at each iteration
 # est_sigma: do not estimate sigma (0), use a uniform prior (1) or a dual prior (2)
 mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigma=c(1,1), est_lambda=1, est_tau=1, sample_geneal=0, sample_loc=0, 
                            plot_phylo=0, plot_MCMC=0, save_MCMC=0,
@@ -1568,8 +1568,9 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
     tau = tau_simul
   }
   
-  if (sample_loc==1 | length(sample_geneal[[1]])>1){ ## sample locations of all internal nodes, if sample_loc==0 the true internal nodes locations are used
-    if (length(sample_geneal[[1]])>1){
+  if (sample_loc==1 | is(trees_phylo,"multiPhylo")){ ## sample locations of all internal nodes, if sample_loc==0 the true internal nodes locations are used
+    browser()
+    if (is(trees_phylo,"multiPhylo")){
       ind = sample(1:length(sample_geneal),1)
       tree_phylo = sample_geneal[[ind]]
       gtreel = converttree(tree_phylo)
@@ -1635,7 +1636,7 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
   ## compute likelihood of this particular phylogeny
   likeli_curr = sim_history(gtreel,space,sigma,lambda,tau,locations_sampled[,1],1,model)[[2]]
   likeli_new = likeli_curr # initialisation
-  # debug
+  print(likeli_curr) # debug
   
   rate_acc = c(0,0,0)
   
@@ -1643,7 +1644,7 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
     
     ## sample internal location and/or genealogy
     
-    if (length(sample_geneal[[1]])>1){
+    if (is(trees_phylo,"multiPhylo")){
       for (n2 in 1:Nstep_genealogy) {
         ind = sample(1:length(sample_geneal),1)
         tree_phylo_new = sample_geneal[[ind]]
@@ -2322,7 +2323,7 @@ output_function = function(stat_res,space_size,maxdist,ntip,sigma_simul,lambda_s
   file_tracer = paste("tracer1_",id_filena,".log",sep="")
   file_tree = paste("file_tree1_",id_filena,".nwk",sep="")
   
-  cat(c(space_size,ntip,round(sigma_simul,3),round(lambda_simul,3),round(tau_simul,3),0,est_sigma,est_lambda,est_tau,as.numeric(length(sample_geneal[[1]])>1),
+  cat(c(space_size,ntip,round(sigma_simul,3),round(lambda_simul,3),round(tau_simul,3),0,est_sigma,est_lambda,est_tau,as.numeric(is(trees_phylo,"multiPhylo")),
         sample_loc,Nstep,freq,Nstep_sigma=1,Nstep_lambda=1,Nstep_tau=1,Nstep_loc=1,pchange=0,ess_lim,unlist(stat_res),round(space[,gtreel$nodes.label[which(is.na(gtreel$nodes[,1]))]],3),
         Nstep_genealogy=1,round(sig_upper_limit,3),round(sig_lower_limit,3),round(maxd,3),round(mean_matDist1,3),round(mean_matDist2,3),'\n'),file=filena,sep=",",append=TRUE)
   
