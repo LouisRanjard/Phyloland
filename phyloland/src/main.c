@@ -10,9 +10,9 @@ double rexp_proba(double lambda_exp);
 double dexp_proba(double x, double lambda_exp);
 double distkm(double lat1, double lat2, double long1, double long2);
 
-void migC(double *space, int *occupied , double *sigma, double *lambda , double *tau, double *mig, double *mig_event, int *space_dim, int *space_size, int *length_mig)
+void migC(double *space, double *mat_Dists1, double *mat_Dists2, int *occupied, double *sigma, double *lambda , double *tau, double *mig, double *mig_event, int *space_dim, int *space_size, int *length_mig)
 {
-	int i = 0 , j = 0 , index = 0;
+	int i=0, j=0, index=0;
 
 	// Affichage des parametres //
 
@@ -21,7 +21,21 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	printf("\nspace\n");
 	for ( i = 0; i < ((*space_size)*(*space_dim)) ; i++) {
 		printf("%lf \t",space[i]);
-	}*/
+	} */
+	
+	
+	/*printf("\nmat_Dists1\n");
+	 for ( i = 0; i < ((*space_size)) ; i++) {
+        for ( j = 0; j < ((*space_size)) ; j++) {
+          printf("%lf \t",mat_Dists1[*space_size*i+j]);
+        }
+	 }
+	 printf("\nmat_Dists2\n");
+	 for ( i = 0; i < ((*space_size)) ; i++) {
+        for ( j = 0; j < ((*space_size)) ; j++) {
+          printf("%lf \t",mat_Dists2[*space_size*i+j]);
+        } 
+	 } */
 	
 	/*printf("\n\noccupied\n");
 	for ( i = 0; i < (*space_size) ; i++) {
@@ -47,7 +61,7 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	printf("\n\nmig_event\n");
 	for ( i = 0; i < (4+(*space_dim)) ; i++) {
 		printf("%lf \t",(mig_event[i]));
-	}*/
+	} */
 	
 	// Fonction //
 	
@@ -98,9 +112,10 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	
 	// ##### 3 ##### //
 	// Distance matrix //
-	double *mat_distsL = NULL, *mat_distsl = NULL;
 	long dim_mat_dists = length_departures * length_destinations;
   //long dim_mat_dists = length_departures2 * length_destinations;//-*-
+/*[for local distance matrix caculation]
+  double *mat_distsL = NULL, *mat_distsl = NULL;
 	mat_distsL = malloc(dim_mat_dists * sizeof(double));
 	mat_distsl = malloc(dim_mat_dists * sizeof(double));
   for (i = 0 ; i < length_departures ; i++) {
@@ -126,19 +141,19 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 		//	printf("space[(*space_size+departures[i]-1)] : %f", space[(*space_size+departures[i]-1)];
 		//	printf("space[(*space_size+destinations[j]-1)] : %f", space[(*space_size+destinations[j]-1)];
 		}
-	}
+	}*/
   
   
 
-	 /* 
+	 /*
 	 printf("\n\nmat_distsL\n");
 	 for (i = 0; i < dim_mat_dists; i++) {
-	 printf("%lf , ",mat_distsL[i]);
+	   printf("%lf , ",mat_distsL[i]);
 	 }
 	 printf("\n\nmat_distsl\n");
 	 for (i = 0; i < dim_mat_dists; i++) {
-	 printf("%lf , ",mat_distsl[i]);
-	 }*/
+	   printf("%lf , ",mat_distsl[i]);
+	 } */
 	
 	// ##### 4 ##### //
 	// Density matrix //
@@ -146,25 +161,52 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
   sdL = sqrt(sigma[0]);
   sdl = sqrt(sigma[1]);
 	int b_log = 1;
-	double *densitymat= NULL;
+/*[for local distance matrix caculation]
+ double *densitymat = NULL;
 	densitymat = malloc(dim_mat_dists * sizeof(double));
+printf("\n");
 	for (i = 0; i < length_destinations; i++) {
   	for (j = 0; j < length_departures; j++) {
+  	  printf("%ld--",i + (length_destinations * j));
 		//for (j = 0; j < length_departures2; j++) {//-*-
   		//densitymat[i + (length_destinations * j)] = ((dnorm(mat_distsL[i + (length_destinations * j)] , mean , sdL , b_log)) + (dnorm(mat_distsl[i + (length_destinations * j)] , mean , sdl , b_log))) - ( log((pnorm(1, mean, sdL,1,0)- pnorm(0, mean, sdL,1,0))) + log((pnorm(1,mean,sdl,1,0) - pnorm(0,mean,sdl,1,0)))) ;
 			densitymat[i + (length_destinations * j)] = exp( (dnorm(mat_distsL[i + (length_destinations * j)] , mean , sdL , b_log) - dnorm(0 , mean , sdL , b_log)) +
                                                        (dnorm(mat_distsl[i + (length_destinations * j)] , mean , sdl , b_log) - dnorm(0 , mean , sdl , b_log)) )
                                                   / length_destinations ;
 		}
+  }
+printf("\n");*/
+	// Alternative: Density matrix using input distance matrices//
+/* */	double *densitymat = NULL;
+	densitymat = malloc(dim_mat_dists * sizeof(double));
+	int k;
+	//printf("dim=%ld\n",dim_mat_dists);
+	for (i = 0; i < *space_size; i++) {
+	  k=0;
+	  for (j = 0; j < *space_size; j++) {
+      if (occupied[j]>0){
+  	    //printf("%d--",k);
+  	    densitymat[i + (length_destinations * (j-k))] = exp( (dnorm(mat_Dists1[i + (length_destinations * j)] , mean , sdL , b_log) - dnorm(0 , mean , sdL , b_log)) +
+                                                             (dnorm(mat_Dists2[i + (length_destinations * j)] , mean , sdl , b_log) - dnorm(0 , mean , sdl , b_log)) )
+                                                        / length_destinations ;
+      }else{ // keep track of the unoccupied locations to get correct index
+        k++;
+      }
+    }
 	}
-
-	 /* 
-   if (sum_occupied==1){
-     printf("\n\nF_{i,j}\n");
+	
+	 
+   //if (sum_occupied==1){
+     /*printf("\n\nF_{i,j}\n");
   	 for (i = 0; i < dim_mat_dists ; i++) {
   	   printf("%e , ",densitymat[i]);
   	 }
-   }*/
+  	 printf("\nF_{i,j} calculated with input distance matrices\n");
+  	 for (i = 0; i < dim_mat_dists ; i++) {
+  	   printf("%e , ",densitymati[i]);
+  	 }
+  	 printf("\n\n"); */
+   //}
 	
 	// ##### 5 ##### //
   
@@ -252,7 +294,7 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	 /*printf("\n\ndensitymat7\n");
 	 for (i = 0; i < dim_mat_dists ; i++) {
 	 printf("%lf , ",densitymat[i]);
-	 }*/
+	 } */
    	
 	double RowSums = 0;
 	double *p = NULL;
@@ -264,6 +306,11 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 		}
 		p[i] = RowSums/Rs ;
 	}
+	/*printf("\n\np\n");
+	 for ( i = 0 ; i < length_departures ; i++) {
+	 printf("%lf,",p[i]);
+	 } */
+	 
 	/*printf("\n\nexp_param\n");
 	for ( i = 0 ; i < length_departures ; i++) {
 	printf("%lf,",exp_param[i]);
@@ -300,6 +347,10 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
       for ( i = 0 ; i < length_destinations ; i++ ) {
         sum_row += R[(length_destinations*lstart)+i];
       }
+//printf("lstart=%i\n",lstart);
+//printf("lgoto=%i\n",lgoto);
+//printf("sum_row=%f\n",sum_row);
+//printf("R=%f\n",R[(length_destinations*(long)(lstart))+(long)(lgoto)]);
 		  proba_event = R[(length_destinations*(long)(lstart))+(long)(lgoto)] / sum_row;
     }else{
       proba_event = R[(length_destinations*(long)(lstart))+(long)(lgoto)] * exp(-Rs*mig[2]);
@@ -307,7 +358,7 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 		wait_time = 0;
 		/*printf("\n\ndexp_proba\n");
   	printf("%lf",dexp_proba(mig[2],sum_exp_param)); */
-//printf("from %f to %f, waiting_time=%f, Rs=%e, proba_event=%e (F_{i,j}=%e,R_{i,j}=%e)\n",mig[0],mig[1],mig[2],Rs,proba_event,densitymat[(length_destinations*(long)(lstart))+(long)(lgoto)],R[(length_destinations*(long)(lstart))+(long)(lgoto)]);
+//printf("from %.0f to %.0f, waiting_time=%f, Rs=%e, proba_event=%e (F_{i,j}=%e,R_{i,j}=%e)\n",mig[0],mig[1],mig[2],Rs,proba_event,densitymat[(length_destinations*(long)(lstart))+(long)(lgoto)],R[(length_destinations*(long)(lstart))+(long)(lgoto)]);
 	}
 	// ##### 21 ##### //
 	else { // sample one migration event
@@ -391,21 +442,25 @@ void migC(double *space, int *occupied , double *sigma, double *lambda , double 
 	mig_event[1] = destinations[(long)(lgoto)]  ;
 	mig_event[2] = proba_event ;
 	mig_event[3] = wait_time ;
-	
+	/* this is wrong if distkm:
 	for ( i = 0 ; i < *space_dim ; i++) {
 		mig_event[4+i] = fabs(space[((*space_size)*i+(destinations[(long)(lgoto)]-1))] - space[((*space_size)*i+(departures[(long)(lstart)]-1))]);
-	}
+	}*/
+	mig_event[4] = mat_Dists1[(destinations[(long)(lgoto)]-1) + (length_destinations * (departures[(long)(lstart)]-1))] ;
+	mig_event[5] = mat_Dists2[(destinations[(long)(lgoto)]-1) + (length_destinations * (departures[(long)(lstart)]-1))] ;
+
 	
 	/*printf("\n\nmig_event\n");	
-	for ( i = 0 ; i < 6 ; i++) 
-	{
+	for ( i = 0 ; i < 6 ; i++) {
 	 printf("%lf  ",mig_event[i]);
-	 }*/
+	} */
 	
 	free(departures);
 	free(destinations);
+/*[for local distance matrix caculation]	
 	free(mat_distsL);
 	free(mat_distsl);
+*/
 	free(densitymat);
 	free(L);
 	free(R);

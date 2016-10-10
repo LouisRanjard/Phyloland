@@ -1506,6 +1506,10 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
     file.create(file = filena_loc)
   }
   
+  if ( Nstep_genealogy==1 && (is.na(treelikelihood) || length(treelikelihood)!=length(sample_geneal)) ){
+    stop('no tree likelihood for sampling trees')
+  }
+  
   sigma_simul = simul_values[[1]]
   lambda_simul = simul_values[[2]]
   tau_simul = simul_values[[3]]
@@ -1518,13 +1522,16 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
   #mat_Dists = space_dist(space)
   mat_Dists = space_dist(space, dmethod)
   
-  if (sum(est_sigma)>0) sigma = rep(0,Ndim)
+  #if (sum(est_sigma)>0) sigma = rep(0,Ndim)
+  sigma = rep(0,Ndim)
   print("Compute sigma upper limit(s)...")
   sig_lower_limit=c()
   sig_upper_limit=c()
   for (nd in 1:Ndim){
-    sig_lower_limit=c(sig_lower_limit,sigma_limit_V2(dist =mean(mat_Dists[[nd]][mat_Dists[[nd]]>0]),proba_lim = 0.01 ))
-    sig_upper_limit=c(sig_upper_limit,sigma_limit_V2(dist =mean(mat_Dists[[nd]][mat_Dists[[nd]]>0]),proba_lim = 0.99 ))
+    #proxy_dist = mean(mat_Dists[[nd]][mat_Dists[[nd]]>0])
+    proxy_dist = .5 * max(mat_Dists[[nd]][mat_Dists[[nd]]>0]) # TO BE TESTED, may be better than mean when spatial distribution of locations is not uniform
+    sig_lower_limit=c(sig_lower_limit,sigma_limit_V2(dist=proxy_dist,proba_lim = 0.01 ))
+    sig_upper_limit=c(sig_upper_limit,sigma_limit_V2(dist=proxy_dist,proba_lim = 0.99 ))
   }
   
   #sig_lower_limit = 0 # note that when new value of sigma proposed is very low then likelihood is -Inf then exp(metropolis+hastings)==0 then new value is rejected
@@ -1551,8 +1558,8 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
   
   lam_lower_limit = 1e-3
   lam_upper_limit = 1e3
-  if (est_lambda==1){ ## start at random
-    #lambda = runif(1,min=lam_lower_limit,max=lam_upper_limit)
+  if (est_lambda==1){
+    #lambda = runif(1,min=lam_lower_limit,max=lam_upper_limit) ## start at random
     lambda = 1 ## start at 1, i.e. no competition
   }else{
     lambda = lambda_simul
@@ -1560,8 +1567,8 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
   
   tau_lower_limit = 1e-3
   tau_upper_limit = 1e3
-  if (est_tau==1){ ## start at random
-    #tau = runif(1,min=tau_lower_limit,max=tau_upper_limit)
+  if (est_tau==1){
+    #tau = runif(1,min=tau_lower_limit,max=tau_upper_limit) ## start at random
     # start at average rate according to tree height and number of internal nodes
     tau = max(internal_node_height(gtreel)) / (tnumi-1)
   }else{
@@ -1569,16 +1576,14 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
   }
   
   if (sample_loc==1 | is(sample_geneal,"multiPhylo")){ ## sample locations of all internal nodes, if sample_loc==0 the true internal nodes locations are used
-    browser()
     if (is(sample_geneal,"multiPhylo")){
       ind = sample(1:length(sample_geneal),1)
       tree_phylo = sample_geneal[[ind]]
       gtreel = converttree(tree_phylo)
-      #gtreelikelihood_curr = treelikelihood[[ind]]
+      gtreelikelihood_curr = treelikelihood[[ind]]
     }else{
       tree_phylo = lconverttree(gtreel)
     }
-    #replace real_loc by locations_sim (dans la fonction show_locat jesais pas d'ou vien le real_loc)
     dim_location=dim(locations_sim)[2]
     if(!is.null(dim_location))
     {
@@ -1586,7 +1591,7 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
     }
     locations = internal_loc(gtreel,locations_sim) ## get list of possible locations for all nodes, Uniform
     ## draw migrations uniformly
-    locations_sampled = sim_history(gtreel,space,sig_upper_limit,1,tau_upper_limit/2,locations,0,model,1)[[1]]
+    locations_sampled = sim_history(gtreel,space,mat_Dists,sig_upper_limit,1,tau_upper_limit/2,locations,0,model,1)[[1]]
     check_treel(gtreel,locations_sampled)
     if (show_loc==1){
       sort_space_id = sort(space,decreasing=TRUE,index.return=TRUE)$ix
@@ -1634,9 +1639,9 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
   output_loc = matrix(nrow=Nstep/freq,ncol=(length(gtreel$nodes[,1])+1))
   
   ## compute likelihood of this particular phylogeny
-  likeli_curr = sim_history(gtreel,space,sigma,lambda,tau,locations_sampled[,1],1,model)[[2]]
+  likeli_curr = sim_history(gtreel,space,mat_Dists,sigma,lambda,tau,locations_sampled[,1],1,model)[[2]]
   likeli_new = likeli_curr # initialisation
-  print(likeli_curr) # debug
+  #print(likeli_curr) # debug
   
   rate_acc = c(0,0,0)
   
@@ -1650,10 +1655,11 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
         tree_phylo_new = sample_geneal[[ind]]
         gtreel_new = converttree(tree_phylo_new)
         gtreelikelihood_new = treelikelihood[[ind]]
-        locations = internal_loc(gtreel_new,locations_sim[,1]) ## get list of possible locations for all nodes, uniform
-        locations_sampled_new = sim_history(gtreel_new,space,sigma,lambda,tau,locations,0,model,1)[[1]]
-        check_treel(gtreel,locations_sampled_new)
-        likeli_new = sim_history(gtreel_new,space,sigma,lambda,tau,locations_sampled_new[,1],1,model)[[2]]
+        #locations = internal_loc(gtreel_new,locations_sim[,1]) ## get list of possible locations for all nodes, uniform
+        locations = internal_loc(gtreel_new,locations_sim) ## get list of possible locations for all nodes, uniform
+        locations_sampled_new = sim_history(gtreel_new,space,mat_Dists,sigma,lambda,tau,locations,0,model,1)[[1]]
+        check_treel(gtreel_new,locations_sampled_new)
+        likeli_new = sim_history(gtreel_new,space,mat_Dists,sigma,lambda,tau,locations_sampled_new[,1],1,model)[[2]]
         metropolis = likeli_new + gtreelikelihood_new - likeli_curr - gtreelikelihood_curr
         accepted = 0
         if (runif(1,min=0,max=1)<exp(metropolis)){
@@ -1672,9 +1678,9 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
       }
     } else if(sample_loc==1) { ## sample location of internal nodes
       for (n2 in 1:Nstep_loc) {
-        locations_sampled_new = sim_history(gtreel,space,sigma,lambda,tau,locations,0,model,1)[[1]]
+        locations_sampled_new = sim_history(gtreel,space,mat_Dists,sigma,lambda,tau,locations,0,model,1)[[1]]
         check_treel(gtreel,locations_sampled_new)
-        likeli_new = sim_history(gtreel,space,sigma,lambda,tau,locations_sampled_new[,1],1,model)[[2]]
+        likeli_new = sim_history(gtreel,space,mat_Dists,sigma,lambda,tau,locations_sampled_new[,1],1,model)[[2]]
         metropolis = likeli_new - likeli_curr
         if (is.na(metropolis)) {
           if (is.infinite(likeli_new)) {print("Infinite Likelihood 1")}
@@ -1700,7 +1706,7 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
             sigma_new[nd] = sigma[nd] * exp(tuningp_sigma[nd]*(runif(1,min=0,max=1)-.5))
             #print(sigma_new)
             if (sigma_new[nd]>sig_lower_limit && sigma_new[nd]<sig_upper_limit[nd]) {
-              likeli_new = sim_history(gtreel,space,sigma_new,lambda,tau,locations_sampled[,1],1,model)[[2]]
+              likeli_new = sim_history(gtreel,space,mat_Dists,sigma_new,lambda,tau,locations_sampled[,1],1,model)[[2]]
               metropolis = likeli_new - likeli_curr
               if (no_metropolis==1) {metropolis = 0}
               hastings = log(sigma_new[nd]) - log(sigma[nd])
@@ -1727,7 +1733,7 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
               #sigma_new[nd] = -log(1-runif(1,min=0,max=0.99))/1.822386
               sigma_new[nd] = -log(1-runif(1,min=0,max=sig_toplim[nd]))/sig_lam[nd]
             }
-            likeli_new = sim_history(gtreel,space,sigma_new,lambda,tau,locations_sampled[,1],1,model)[[2]]
+            likeli_new = sim_history(gtreel,space,mat_Dists,sigma_new,lambda,tau,locations_sampled[,1],1,model)[[2]]
             if (runif(1,min=0,max=1)<exp(likeli_new-likeli_curr)){
               sigma = sigma_new
               likeli_curr = likeli_new
@@ -1765,7 +1771,7 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
         accepted = 0
         lambda_new = lambda * exp(tuningp_lambda*(runif(1,min=0,max=1)-.5))
         if (lambda_new>lam_lower_limit && lambda_new<lam_upper_limit) {
-          likeli_new = sim_history(gtreel,space,sigma,lambda_new,tau,locations_sampled[,1],1,model)[[2]]
+          likeli_new = sim_history(gtreel,space,mat_Dists,sigma,lambda_new,tau,locations_sampled[,1],1,model)[[2]]
           metropolis = likeli_new - likeli_curr
           if (no_metropolis==1) {metropolis = 0}
           hastings = log(lambda_new) - log(lambda)
@@ -1811,7 +1817,7 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
         accepted = 0
         tau_new = tau * exp(tuningp_tau*(runif(1,min=0,max=1)-.5))
         if (tau_new>tau_lower_limit && tau_new<tau_upper_limit) {
-          likeli_new = sim_history(gtreel,space,sigma,lambda,tau_new,locations_sampled[,1],1,model)[[2]]
+          likeli_new = sim_history(gtreel,space,mat_Dists,sigma,lambda,tau_new,locations_sampled[,1],1,model)[[2]]
           metropolis = likeli_new - likeli_curr
           if (no_metropolis==1) {metropolis = 0}
           hastings = log(tau_new) - log(tau)
@@ -2247,19 +2253,22 @@ migration<-function(space,occupied,sigma,lambda,tau,departure=0,destination=0,mi
 ### if departure[1]>0 then only consider migrations from these locations in mode 2
 ### if destination[1]>0 then only consider migrations to these locations in mode 2
 ### if mig[1]>0 then only consider this particular migration out of all possible in mode 2 (must be vector of 3 elements with third element being the time to wait for this migration to happen)
-new_migration <- function(space, occupied, sigma, lambda, tau, departure, destination, mig){
-  migr <- function(space, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig){
-    .C("migC", space, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig)}
+new_migration <- function(space, mat_Dists, occupied, sigma, lambda, tau, departure, destination, mig){
+  # C function declaration
+  migr <- function(space, mat_Dists1, mat_Dists2, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig){
+    .C("migC", space, mat_Dists1, mat_Dists2, occupied, sigma, lambda, tau, mig, mig_event, space_dim, space_size, length_mig)}
   
   space_dimC = as.integer(nrow(space))
   space_sizeC = as.integer(ncol(space))
-  
+
   spaceC = as.double(as.vector(t(space)))
   occupiedC = as.integer(occupied)
-  sigmaC  = as.double(sigma)
+  sigmaC = as.double(sigma)
   lambdaC = as.double(lambda)
   tauC = as.double(tau)
   migC = as.double(mig)
+  mat_Dists1C = as.double(as.vector(mat_Dists[[1]]))
+  mat_Dists2C = as.double(as.vector(mat_Dists[[2]]))
   
   #departure = as.integer(departure)
   #length_departure = as.integer(length(departure))
@@ -2269,11 +2278,16 @@ new_migration <- function(space, occupied, sigma, lambda, tau, departure, destin
   
   mig_eventC = as.double(vector("numeric", (4+space_dimC)))
   length_migC = as.integer(length(migC))
-  
-  if (length(sigma) != space_dimC) stop('new_migration error 1')
-  mig_event = migr(spaceC, occupiedC, sigmaC, lambdaC, tauC, migC, mig_eventC, space_dimC, space_sizeC, length_migC)[[7]]
+#browser()
+#cat("\n\n\n")
+#print(occupiedC)
+#print(c(sigmaC, lambdaC, tauC)) 
+#print(c(migC, mig_eventC, space_dimC, space_sizeC, length_migC))
+  #if (length(sigma) != space_dimC) stop('new_migration error 1') # remove to speed up?
+  outC = migr(spaceC, mat_Dists1C, mat_Dists2C, occupiedC, sigmaC, lambdaC, tauC, migC, mig_eventC, space_dimC, space_sizeC, length_migC)
+  mig_event = outC[[9]]
   #mig_event = migration(space, occupied, sigma, lambda, tau, departure, destination, mig) ## DEBUG by using R version
-  
+
   return(mig_event)
 }
 
@@ -2647,9 +2661,9 @@ read_treelikelihood <- function(fileTREES){
     }
     else {
       posterior2=posterior #if posterior probabilities are provided from beast output
-      treelikelihood=posterior2
     }
   }
+  treelikelihood=posterior2
   return(as.numeric(treelikelihood))
 }
 
@@ -2718,7 +2732,7 @@ reorder_treep <- function(tree_phylo){
 }
 
 ## simulate migration in space and return corresponding genealogy
-sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_simul=.4,lambda_simul=.5,tau_simul=1,use_molseq=0,space_dim=1,model=1,usedegree=0){
+sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_simul=.4,lambda_simul=.5,tau_simul=1,use_molseq=0,space_dim=1,model=1,usedegree=0,dmethod="distkm"){
   if (model!=4){ ## create tree first
     ## get a tree using a Yule process then simulate a genealogy
     #tree_treeshape = rtreeshape(n=1, tip.number=N, model="yule")[[1]] # tree format "treeshape" (package:apTreeshape)
@@ -2743,6 +2757,7 @@ sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_sim
   ## PARAMETER: number of geographic locations
   
   space = create_landscape(space_size,space_dim)
+  mat_Dists = space_dist(space, dmethod)
   
   #print(numi)
   #space = create_landscape(sum(numi),space_dim)
@@ -2750,7 +2765,7 @@ sim_phyloland <- function(N=10,Mean_H=1,pop_size=1,ni=10,space_size=10,sigma_sim
   #print(space)
   ## simulate migrations from root to tips
   ## PARAMETER: sigma, lambda, tau
-  simulated_history = sim_history(gtreel,space,sigma_simul,lambda_simul,tau_simul,0,0,model,0,N)
+  simulated_history = sim_history(gtreel,space,mat_Dists,sigma_simul,lambda_simul,tau_simul,0,0,model,0,N)
   
   locations_sampled = simulated_history[[1]]
   
@@ -2861,7 +2876,7 @@ select_subtree <- function(treeStruct){
 ### getL: return likelihood of a specific set of locations
 ### model: each node is 2 dispersals potentially on father's loc (1) or exactly one dispersal out of father's loc (2) or one mig per node (4)
 ### samunif: if ==1, draw the locations of internal nodes uniformly in the list of possible locations, otherwise use the model
-sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL = 0, model = 1, samunif = 0, numtip = 50){
+sim_history <- function(gtreel, space, mat_Dists, sigma, lambda, tau, locations = 0, getL = 0, model = 1, samunif = 0, numtip = 50){
   
   ## to compute history likelihood
   history_proba_val = 0
@@ -2901,11 +2916,12 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
           locdest = locations[[siblings[1]]]
         } else if (locations[[siblings[1]]]!=ploc && locations[[siblings[2]]]!=ploc) { stop('sim_history(): error 3') }
         if (n==1){
-          migration_event = new_migration( space, occupied, sigma, lambda, tau, 0, 0, c(ploc,locdest,0) )
+          migration_event = new_migration( space, mat_Dists, occupied, sigma, lambda, tau, 0, 0, c(ploc,locdest,0) )
         }else{
-          migration_event = new_migration( space, occupied, sigma, lambda, tau, 0, 0, c(ploc,locdest,abs(inode_height[node_id[n]]-inode_height[node_id[n-1]])) )
+          migration_event = new_migration( space, mat_Dists, occupied, sigma, lambda, tau, 0, 0, c(ploc,locdest,abs(inode_height[node_id[n]]-inode_height[node_id[n-1]])) )
         }
         history_proba_val = history_proba_val + log(migration_event[3])
+#if (is.na(history_proba_val) | is.infinite(history_proba_val)){browser()}
         occupied[locdest] = occupied[locdest] + 1
         #print(migration_event)
         #print(history_proba_val)
@@ -2926,7 +2942,7 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
           if (loc_sib2==ploc) {
             if (samunif==1){ migration_event[2] = sample(loc_sib1,1) }
             else {
-              migration_event = new_migration( space, occupied, sigma, lambda, tau, ploc, loc_sib1, 0 )
+              migration_event = new_migration( space, mat_Dists, occupied, sigma, lambda, tau, ploc, loc_sib1, 0 )
             }
             locations_sampled[siblings[1],] = c(migration_event[2],migration_event[5:length(migration_event)])
             occupied[migration_event[2]] = occupied[migration_event[2]] +1
@@ -2940,7 +2956,7 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
           if (loc_sib1==ploc) {
             if (samunif==1){ migration_event[2] = sample(loc_sib2,1) }
             else {
-              migration_event = new_migration( space, occupied, sigma, lambda, tau, ploc, loc_sib2)
+              migration_event = new_migration( space, mat_Dists, occupied, sigma, lambda, tau, ploc, loc_sib2, 0 )
             }
             locations_sampled[siblings[2],] = c(migration_event[2],migration_event[5:length(migration_event)])
             occupied[migration_event[2]] = occupied[migration_event[2]] + 1
@@ -2959,7 +2975,7 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
             locations_sampled[siblings[1],1] = ploc
             if (samunif==1){ migration_event[2] = sample(loc_sib2,1) }
             else {
-              migration_event = new_migration( space, occupied, sigma, lambda, tau, ploc, loc_sib2 , 0 )
+              migration_event = new_migration( space, mat_Dists, occupied, sigma, lambda, tau, ploc, loc_sib2 , 0 )
            }
             locations_sampled[siblings[2],] = c(migration_event[2],migration_event[5:length(migration_event)])
             occupied[migration_event[2]] = occupied[migration_event[2]] + 1
@@ -2967,7 +2983,7 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
             locations_sampled[siblings[2],1] = ploc
             if (samunif==1){ migration_event[2] = sample(loc_sib1,1) }
             else {
-              migration_event = new_migration( space, occupied, sigma, lambda, tau, ploc, loc_sib1 , 0  )
+              migration_event = new_migration( space, mat_Dists, occupied, sigma, lambda, tau, ploc, loc_sib1 , 0  )
               }
             locations_sampled[siblings[1],] = c(migration_event[2],migration_event[5:length(migration_event)])
             occupied[migration_event[2]] = occupied[migration_event[2]] + 1
@@ -2976,7 +2992,7 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
           locations_sampled[siblings[2],1] = ploc
           if (samunif==1){ migration_event[2] = sample(loc_sib1,1) }
           else {
-            migration_event = new_migration( space, occupied, sigma, lambda, tau, ploc, loc_sib1, 0 )
+            migration_event = new_migration( space, mat_Dists, occupied, sigma, lambda, tau, ploc, loc_sib1, 0 )
           }
           locations_sampled[siblings[1],] = c(migration_event[2],migration_event[5:length(migration_event)])
           occupied[migration_event[2]] = occupied[migration_event[2]] + 1
@@ -2984,7 +3000,7 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
           locations_sampled[siblings[1],1] = ploc
           if (samunif==1){ migration_event[2] = sample(loc_sib2,1) }
           else {
-            migration_event = new_migration( space, occupied, sigma, lambda, tau, ploc, loc_sib2, 0 )
+            migration_event = new_migration( space, mat_Dists, occupied, sigma, lambda, tau, ploc, loc_sib2, 0 )
           }
           locations_sampled[siblings[2],] = c(migration_event[2],migration_event[5:length(migration_event)])
           occupied[migration_event[2]] = occupied[migration_event[2]] + 1
@@ -3006,7 +3022,7 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
     #}
     
     history = cbind(0)
-    history = sim_mig(space,sigma,lambda,tau,0,numtip)[[1]] # limit to numtip leaves
+    history = sim_mig(space,mat_Dists,sigma,lambda,tau,0,numtip)[[1]] # limit to numtip leaves
     print(paste('number of simulated migration events:',nrow(history)-1))
     treeloc = mig2treel(history)
     gtreel = treeloc[[1]]
@@ -3024,7 +3040,7 @@ sim_history <- function(gtreel, space, sigma, lambda, tau, locations = 0, getL =
 }
 
 ## simulate a sequence of migration events
-sim_mig <- function(space, sigma, lambda, tau, timelimit, poplimit=0){
+sim_mig <- function(space, mat_Dists, sigma, lambda, tau, timelimit, poplimit=0){
   occupied = vector('numeric', ncol(space))
   occupied[sample(1:ncol(space),1)] = 1 ## root ici pour choisir le racine
 
@@ -3032,7 +3048,7 @@ sim_mig <- function(space, sigma, lambda, tau, timelimit, poplimit=0){
   time_elapsed = 0
   stop = 0
   while (stop==0){
-    mig_event = new_migration(space, occupied, sigma, lambda, tau , 0 , 0 , 0)
+    mig_event = new_migration(space, mat_Dists, occupied, sigma, lambda, tau , 0 , 0 , 0)
     if(is.na(mig_event[4])){}
     time_elapsed = time_elapsed + mig_event[4]
     history = rbind(history, mig_event, deparse.level=0)
