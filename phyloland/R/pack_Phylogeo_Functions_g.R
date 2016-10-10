@@ -980,7 +980,7 @@ distkm <- function(lat1,lat2,long1,long2){ # get distance in km between coordina
     lat2r = (lat2/180) * pi
     long1r = (long1/180) * pi
     long2r = (long2/180) * pi
-    R=6371
+    R=6371 # earth radius
     x=(long2r-long1r)*cos(0.5*(lat2r+lat1r))
     y=lat2r-lat1r
     d=R*sqrt(x*x+y*y)
@@ -992,7 +992,7 @@ distkm <- function(lat1,lat2,long1,long2){ # get distance in km between coordina
     {
       
       if(!identical(long1r,long2r) && abs(long2r-long1r)<1e-6){ #correspond to adistance lower than 1m
-        d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r))*6378.137
+        d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)) * R
         
       }else if(identical(long1,long2r) && identical(lat1r,lat2r))
       {
@@ -1000,7 +1000,7 @@ distkm <- function(lat1,lat2,long1,long2){ # get distance in km between coordina
       }
       else{
         #d=sqrt(((long1-long2)*(long1-long2)) + ((lat1-lat2)*(lat1-lat2)))
-        d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)*cos(long2r-long1r) ) * 6378.137
+        d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)*cos(long2r-long1r) ) * R
       }
     }
   return(d)

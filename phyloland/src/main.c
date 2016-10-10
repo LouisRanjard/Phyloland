@@ -536,12 +536,13 @@ double distkm(double lat1, double lat2, double long1, double long2)
     }
  
     if((long2r != long1r) && (fabs(long2r-long1r)<0.000001)){
-      d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r))*6378.137;
+      d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)) * R ;
       //d=sqrt(((long1-long2)*(long1-long2)) + ((lat1-lat2)*(lat1-lat2)));
     } else{
-      d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)*cos(long2r-long1r)) * 6378.137 ;
-      //  d=sqrt(((long1-long2)*(long1-long2)) + ((lat1-lat2)*(lat1-lat2)));
+      d = acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)*cos(long2r-long1r)) * R ;
+      //d=sqrt(((long1-long2)*(long1-long2)) + ((lat1-lat2)*(lat1-lat2)));
     }
+    
     //printf("sin(lat1r):%f sin(lat2r)%f cos(lat1r)%f cos(lat2r):%f produit:%f acos:%f\n",sin(lat1r),sin(lat2r),cos(lat1r),cos(lat2r),(sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)), acos( sin(lat1r)*sin(lat2r) + cos(lat1r)*cos(lat2r)));
     //printf("lat1:%f lat2%f long1:%f long2:%f\n",lat1,lat2,long1,long2);
     //printf("lat1r:%f lat2r:%f long1r:%f long2r:%f\n",lat1r,lat2r,long1r,long2r);
