@@ -1502,7 +1502,7 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
     #write("", file = file_tree, append = FALSE)
     file.create(file = file_tree)
   }
-  if (!is.na(filena_loc)){
+  if (!is.na(filena_loc) && !file.exists(filena_loc)){ # location file should be created in PLD_interface()
     file.create(file = filena_loc)
   }
   
@@ -1870,11 +1870,14 @@ mcmc_phyloland <- function(space, gtreel, simul_values, treelikelihood, est_sigm
       list_nb = test[[2]]
       list_ind = test[[3]]
       
-      if (!is.na(file_tree)){
+      if (!is.na(file_tree)){ # print sampled tree with internal node locations
         #print(tree_phylo_ordered$edge)
         #x11();plot(tree_phylo_ordered)
         #print(file_tree)
-        write(write.tree(tree_phylo_ordered,file=""), file = file_tree, append = TRUE)
+        #plotree(ordered[[1]],locations_ordered)
+        #tree_phylo_ordered$node.label = colnames(space)[locations_ordered] # attempt to write internal locations with tree
+        #write(write.tree(tree_phylo_ordered,file=""), file = file_tree, append = TRUE)
+        plot_trees_tips(tree_phylo_ordered, locations_ordered, space, show_index=0, file_tree)
       }
       
       freq_n = freq_n + 1
@@ -2453,7 +2456,7 @@ plot_sigma_limit <- function(sigma_min,sigma_max,dis_min,dis_max){
 
 # plot tree with location names for internal nodes and tips
 # "location" contains the index of location from the oldest up to the most recent internal nodes, therefore needs to make sure tree_phylo is ordered the same way
-plot_trees_tips<-function(tree_phylo, location, space, show_index=0){
+plot_trees_tips<-function(tree_phylo, location, space, show_index=0, outfile=NA){
   # make sure the internal nodes indexes are in correct order with location
   ordered = reorder_treel(converttree(tree_phylo),location)
   #location = ordered[[2]]
@@ -2470,10 +2473,14 @@ plot_trees_tips<-function(tree_phylo, location, space, show_index=0){
   #   }
   tree_phylo$node.label = colnames(space)[ as.numeric(location[(Ntip(tree_phylo)+1):(2*Ntip(tree_phylo)-1)]) ]
   #  tree_phylo$tip.label = tips
-  tree_par = write.tree(tree_phylo)
-  plot.phylo(read.tree(file="", text=tree_par), show.tip.label=TRUE, show.node.label=TRUE, cex=.7, label.offset=.001)
-  #plot.phylo(read.tree(file="", text=tree_par), show.tip.label=TRUE, show.node.label=TRUE, cex=.7) # Ape's label.offset option seems unstable??
-  print(tree_par)	
+  if (is.na(outfile)){
+    tree_par = write.tree(tree_phylo) # print the tree on the console as well
+    plot.phylo(read.tree(file="", text=tree_par), show.tip.label=TRUE, show.node.label=TRUE, cex=.7, label.offset=.001)
+    #plot.phylo(read.tree(file="", text=tree_par), show.tip.label=TRUE, show.node.label=TRUE, cex=.7) # Ape's label.offset option seems unstable??
+    print(tree_par)
+  }else{
+    write(write.tree(tree_phylo,file=""), file=outfile, append=TRUE)
+  }
 }
 
 ### plot tree in format louis using ape package (or ade4)
@@ -2628,7 +2635,15 @@ read_space <- function(fileDATA, tips){
     }
     mL = max(L) - min(L)
     space[i,] = (L - min(L))/mL	
-  }	
+  }
+  # add the space location names (if provided)
+  if (ncol(sampled_loc)>3){
+    cnames=rep("",ncol(space_dec))
+    for (i in 1:ncol(space_dec)){
+      cnames[i] <- sampled_loc[ which(coord_tips[,1]==space_dec[1,i] & coord_tips[,2]==space_dec[2,i])[1], 4 ]
+    }
+    colnames(space_dec) <- cnames
+  }
   return(list(loc_tips,space,space_dec))	
 }
 
